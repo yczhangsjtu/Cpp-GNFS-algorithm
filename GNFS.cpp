@@ -52,7 +52,7 @@ long tol(Intp k)
  * m: the number selected
  * d: degree of the polynomial
  */
-void selectPolynomial(Int n, ZZX &f, Int *m, Int *d)
+void selectPolynomial(Int n, IntX &f, Int *m, Int *d)
 {
 	*d = pow(3*log(n)/log(log(n)),0.333)+1;
 	*m = pow(tol(n),1.0/tol(*d));
@@ -100,18 +100,18 @@ void rationalSieve(Int *sieve_array, Int sieve_len, Int *RB, Int nRB, Int A, Int
 	printf("\n");*/
 }
 
-ZZ norm(ZZX &f, Int a, Int b)
+Int norm(IntX &f, Int a, Int b)
 {
 	Int d(deg(f));
 	if(a == 0)
 	{
-		ZZ p(1);
+		Int p(1);
 		for(int i = 0; i < d; i++)
 			p *= -b;
 		return p;
 	}
-	ZZ p(1);
-	ZZ s(0);
+	Int p(1);
+	Int s(0);
 	for(int i = 0; i < d; i++) p *= a;
 	for(int i = tol(d); i >= 0; i--)
 	{
@@ -121,7 +121,7 @@ ZZ norm(ZZX &f, Int a, Int b)
 	return s;
 }
 
-void algebraicSieve(ZZ *nf_sieve_array, ZZX &f, MyPair *AB, Int nAB, Int sieve_len, Int A, Int b)
+void algebraicSieve(Int *nf_sieve_array, IntX &f, MyPair *AB, Int nAB, Int sieve_len, Int A, Int b)
 {
 	/*Zerolize the sieve array*/
 	for(int i = 0; i < sieve_len; i++)
@@ -156,7 +156,7 @@ bool randombool(double p)
 	return rand() < RAND_MAX * p;
 }
 
-void sieve(ZZX &f, Int *RB, Int nRB, MyPair *AB, Int nAB, MyPair *result, Int num, Int N, Int m)
+void sieve(IntX &f, Int *RB, Int nRB, MyPair *AB, Int nAB, MyPair *result, Int num, Int N, Int m)
 {
 	Int loc(0);
 	Int *r_sieve_array = new Int[tol(2*N+1)];
@@ -213,19 +213,19 @@ void primeSieve(Int *result, Int *num, Int bound)
 	delete []buf;
 }
 
-void rootsMod(ZZX &f, Int p, Int *roots, Int *nroot)
+void rootsMod(IntX &f, Int p, Int *roots, Int *nroot)
 {
 	Int d(deg(f));
-	ZZ q(p);
-	ZZ_p::init(q);
-	ZZ_pX g(INIT_SIZE,tol(d+1));
+	Int q(p);
+	Intp::init(q);
+	IntpX g(INIT_SIZE,tol(d+1));
 	for(int i = 0; i <= d; i++)
 	{
-		ZZ_p c(INIT_VAL,f[i]);
+		Intp c(INIT_VAL,f[i]);
 		SetCoeff(g,i,c);
 	}
 
-	Vec< Pair<ZZ_pX, long> > factors;
+	Vec< Pair<IntpX, long> > factors;
 	CanZass(factors,g);
 	Int n(factors.length());
 	*nroot = 0;
@@ -233,7 +233,7 @@ void rootsMod(ZZX &f, Int p, Int *roots, Int *nroot)
 	{
 		if(deg(factors[i].a) == 1)
 		{
-			ZZ_p a,b;
+			Intp a,b;
 			GetCoeff(a,factors[i].a,0);
 			GetCoeff(b,factors[i].a,1);
 			if(b != 0)
@@ -343,14 +343,14 @@ void solveMatrix(int **matrix, Int I, Int J, int *vec)
 	}
 }
 
-void modpower(ZZ_pX &px, ZZ_pX sx, ZZ_pX fx, ZZ e)
+void modpower(IntpX &px, IntpX sx, IntpX fx, Int e)
 {
 	if(e == 0)
 	{
 		px = 1;
 		return;
 	}
-	ZZ_pX mp;
+	IntpX mp;
 	modpower(mp,sx,fx,e/2);
 	if(e % 2 == 1)
 		px = (mp * mp * sx) % fx;
@@ -358,19 +358,19 @@ void modpower(ZZ_pX &px, ZZ_pX sx, ZZ_pX fx, ZZ e)
 		px = (mp * mp) % fx;
 }
 
-bool legal(ZZX &fx, Int p, Int d)
+bool legal(IntX &fx, Int p, Int d)
 {
-	ZZ_p::init(ZZ(p));
-	ZZ_pX Fx(INIT_SIZE,tol(d+1));
+	Intp::init(Int(p));
+	IntpX Fx(INIT_SIZE,tol(d+1));
 	for(long i = 0; i <= d; i++)
 	{
-		ZZ_p c(INIT_VAL,fx[i]);
+		Intp c(INIT_VAL,fx[i]);
 		SetCoeff(Fx,i,c);
 	}
-	ZZ zp(p), q = power(zp,tol(d));
+	Int zp(p), q = power(zp,tol(d));
 	for(int i = 0; i < 20; i++)
 	{
-		ZZ_pX px, mp;
+		IntpX px, mp;
 		random(px,tol(d+1));
 		modpower(mp,px,Fx,(q-1)/2);
 		if(mp != tol(p-1) && mp != 1) return false;
@@ -378,9 +378,9 @@ bool legal(ZZX &fx, Int p, Int d)
 	return true;
 }
 
-void selectNonResidual(ZZ_pX &px, ZZ_pX fx, Int p, ZZ q, Int d)
+void selectNonResidual(IntpX &px, IntpX fx, Int p, Int q, Int d)
 {
-	ZZ_pX mp;
+	IntpX mp;
 	while(true)
 	{
 		random(px,tol(d));
@@ -389,7 +389,7 @@ void selectNonResidual(ZZ_pX &px, ZZ_pX fx, Int p, ZZ q, Int d)
 	}
 }
 
-Int computeOrder(ZZ_pX px, ZZ_pX fx)
+Int computeOrder(IntpX px, IntpX fx)
 {
 	for(long i = 0; i < 10000; i++)
 	{
@@ -399,38 +399,38 @@ Int computeOrder(ZZ_pX px, ZZ_pX fx)
 	return Int(-1);
 }
 
-Int computeSquareRoot(ZZX sx, ZZX &f, Int p, Int m, ZZ Nm)
+Int computeSquareRoot(IntX sx, IntX &f, Int p, Int m, Int Nm)
 {
 	Int d(deg(f));
-	ZZ zp(p);
-	ZZ_p::init(zp);
-	ZZ_pX Fx(INIT_SIZE,tol(d+1));
+	Int zp(p);
+	Intp::init(zp);
+	IntpX Fx(INIT_SIZE,tol(d+1));
 	for(int i = 0; i <= d; i++)
 	{
-		ZZ_p c(INIT_VAL,f[i]);
+		Intp c(INIT_VAL,f[i]);
 		SetCoeff(Fx,i,c);
 	}
-	ZZ_pX Sx(INIT_SIZE,tol(d));
+	IntpX Sx(INIT_SIZE,tol(d));
 	for(int i = 0; i < d; i++)
 	{
 		Intp c(INIT_VAL, sx[i] % zp);
 		SetCoeff(Sx,i,c);
 	}
-	ZZ q = power(zp,tol(d));
-	ZZ q1 = q - 1;
+	Int q = power(zp,tol(d));
+	Int q1 = q - 1;
 	/*Check Sx is quadratic residual*/
-	ZZ_pX Sxp;
+	IntpX Sxp;
 	modpower(Sxp,Sx,Fx,q1/2);
 	assert(Sxp == 1);
 	/********************************/
-	Int r(0); ZZ s = q1;
+	Int r(0); Int s = q1;
 	while(true)
 	{
 		if(s % 2 != 0) break;
 		r++;
 		s /= 2;
 	}
-	ZZ_pX lambda, omega, zeta, eta;
+	IntpX lambda, omega, zeta, eta;
 	modpower(lambda,Sx,Fx,s);
 	modpower(omega,Sx,Fx,(s+1)/2);
 	selectNonResidual(eta,Fx,p,q,d);
@@ -449,7 +449,7 @@ Int computeSquareRoot(ZZX sx, ZZX &f, Int p, Int m, ZZ Nm)
 	{
 		Int m = computeOrder(lambda,Fx);
 		assert(r > m);
-		ZZ_pX pzeta1 = zeta, pzeta2;
+		IntpX pzeta1 = zeta, pzeta2;
 		for(long i = 0; i < r-m-1; i++)
 			pzeta1 = pzeta1 * pzeta1;
 		pzeta2 = pzeta1 * pzeta1;
@@ -461,10 +461,10 @@ Int computeSquareRoot(ZZX sx, ZZX &f, Int p, Int m, ZZ Nm)
 	cout << "omega_n = " << omega << endl;
 #endif
 	/*Check that omega_n^2 = delta*/
-	ZZ_pX omega2 = (omega * omega) % Fx;
+	IntpX omega2 = (omega * omega) % Fx;
 	assert(Sx == omega2);
 	/*If the norm of omega is not equivalent to norm, negate it*/
-	ZZ_pX NN; ZZ_p pp; Int ppp;
+	IntpX NN; Intp pp; Int ppp;
 	modpower(NN,omega,Fx,q1/(p-1));
 	GetCoeff(pp,NN,0);
 	conv(ppp,pp);
@@ -477,8 +477,8 @@ Int computeSquareRoot(ZZX sx, ZZX &f, Int p, Int m, ZZ Nm)
 		assert(ppp == Nm % zp);
 	}
 	/*Substitute m in*/
-	ZZ_p M;
-	eval(M,omega,ZZ_p(INIT_VAL,m));
+	Intp M;
+	eval(M,omega,Intp(INIT_VAL,m));
 	// cout << M << endl;
 	Int mm;
 	conv(mm,M);
@@ -495,7 +495,7 @@ double doublesum(double array[], Int l, Int r)
 bool NFS(Int n)
 {
 	srand((unsigned)time(0));
-	ZZX f;
+	IntX f;
 	Int m, d;
 	selectPolynomial(n,f,&m,&d);
 	printf("m=%ld\n",tol(m));
@@ -665,28 +665,28 @@ bool NFS(Int n)
 
 	/*Calculate prod(a+bm)*/
 	printf("Computing prod(a+bm)...\n");
-	ZZ s(1);
+	Int s(1);
 	for(long i = 0; i < J; i++)
 	{
 		Int a = result[i].r;
 		Int b = result[i].p;
-		ZZ t(a+b*m);
+		Int t(a+b*m);
 		if(vec[i]) s *= t;
 	}
-	ZZ r = SqrRoot(s);
+	Int r = SqrRoot(s);
 	/*Check that s is indeed a square number.*/
 	assert(r*r == s);
 
 	/*Calculate prod(a+b theta)*/
 	printf("Computing prod(a+b theta)/f(theta)\n");
-	ZZ Nm(1);
-	ZZX sx(1);
-	ZZ phibeta2(0);
+	Int Nm(1);
+	IntX sx(1);
+	Int phibeta2(0);
 	for(long i = 0; i < J; i++)
 	{
 		Int a = result[i].r;
 		Int b = result[i].p;
-		ZZX gx(INIT_SIZE,2);
+		IntX gx(INIT_SIZE,2);
 		SetCoeff(gx,0,a);
 		SetCoeff(gx,1,b);
 		if(vec[i])
@@ -700,25 +700,25 @@ bool NFS(Int n)
 	cout << sx << endl;
 
 	/*Compute phi(beta^2) for checking*/
-	ZZ pm(1);
+	Int pm(1);
 	for(long i = 0; i < d; i++)
 	{
 		phibeta2 += sx[i] * pm;
 		pm *= m;
 	}
 	/*Check that Nm is square*/
-	ZZ NN = SqrRoot(Nm);
+	Int NN = SqrRoot(Nm);
 	assert(NN * NN == Nm);
 	Nm = NN;
 	/*Calculate x = phi(beta)*/
 	/*1. Estimate an uppder bound for x*/
 	printf("Computing phi(beta) mod n...\n");
 	printf("----Selecting primes p_i such that prod p_i > x\n");
-	ZZ S(0);
-	ZZ pom(1);
+	Int S(0);
+	Int pom(1);
 	for(long i = 0; i < d; i++)
 	{
-		ZZ c = sx[i];
+		Int c = sx[i];
 		if(c < 0) c = -c;
 		c = SqrRoot(c) * 100;
 		S += c * pom;
@@ -754,36 +754,36 @@ bool NFS(Int n)
 		Int p = ps[i];
 		X[i] = computeSquareRoot(sx,f,p,m,Nm);
 		/*Check x^2 mod pi*/
-		// cout << (ZZ(X[i])*ZZ(X[i])) % ZZ(p) << endl;
-		// cout << phibeta2 % ZZ(p) << endl;
-		// assert(ZZ(X[i])*ZZ(X[i]) % ZZ(p) == phibeta2 % ZZ(p));
+		// cout << (Int(X[i])*Int(X[i])) % Int(p) << endl;
+		// cout << phibeta2 % Int(p) << endl;
+		// assert(Int(X[i])*Int(X[i]) % Int(p) == phibeta2 % Int(p));
 	}
 	/*4. Compute x mod n*/
 	/*Compute the real answer*/
 #if 0
 	{
-		ZZ z(0);
-		ZZ P(1);
+		Int z(0);
+		Int P(1);
 		for(int i = 0; i < nps; i++)
 			P *= ps[i];
-		ZZ Pmodn = P % ZZ(n);
+		Int Pmodn = P % Int(n);
 		for(int i = 0; i < nps; i++)
 		{
-			ZZ ai = InvMod((P/ps[i])%ZZ(ps[i]),ZZ(ps[i]));
+			Int ai = InvMod((P/ps[i])%Int(ps[i]),Int(ps[i]));
 			z += ai * X[i] * (P/ps[i]);
 		}
-		ZZ x = z % P;
+		Int x = z % P;
 		cout << "Real P is " << P << endl;
-		cout << "Real P mod n is " << P % ZZ(n) << endl;
+		cout << "Real P mod n is " << P % Int(n) << endl;
 		cout << "Real z is " << z << endl;
 		cout << "Real r is " << z/P << endl;
 		cout << "z - rP is " << z - (z/P)*P << endl;
 		cout << "Real x is " << x << endl;
-		cout << "Real x mod n is " << x % ZZ(n) << endl;
+		cout << "Real x mod n is " << x % Int(n) << endl;
 		cout << "Real x^2 mod n is " << (x*x) % n << endl;
 		for(int i = 0; i < nps; i++)
-			assert(x % ZZ(ps[i]) == X[i]);
-		cout << "phi(beta^2) mod n = " << phibeta2 % ZZ(n) << endl;
+			assert(x % Int(ps[i]) == X[i]);
+		cout << "phi(beta^2) mod n = " << phibeta2 % Int(n) << endl;
 	}
 #endif
 	/****************************/
@@ -809,19 +809,19 @@ bool NFS(Int n)
 	Int rr((int)doublesum(array,Int(0),nps));
 	// cout << "r = " << rr << endl;
 
-	ZZ XX(0);
+	Int XX(0);
 	Int Pmodn(1);
 	for(long i = 0; i < nps; i++)
 		Pmodn = (Pmodn * ps[i]) % n;
 	// cout << "P mod n = " << Pmodn << endl;
 
 	for(long i = 0; i < nps; i++)
-		XX = (XX + ZZ(Pinv[i]) * ZZ(X[i]) * ZZ(Pmodn) * ZZ(InvMod(ps[i]%n,n))) % ZZ(n);
+		XX = (XX + Int(Pinv[i]) * Int(X[i]) * Int(Pmodn) * Int(InvMod(ps[i]%n,n))) % Int(n);
 	XX = XX - rr * Pmodn;
-	XX %= ZZ(n);
+	XX %= Int(n);
 	if(XX < 0) XX += n;
 
-	ZZ(YY) = ZZ(r)%ZZ(n);
+	Int(YY) = Int(r)%Int(n);
 	if(XX*XX%n != YY*YY%n) XX=(XX-Pmodn)%n;
 	cout << "x mod n = " << XX << endl;
 	cout << "y mod n = " << YY << endl;
@@ -830,11 +830,11 @@ bool NFS(Int n)
 	cout << "y^2 mod n = " << YY * YY % n << endl;
 	cout << "x + y = " << XX+YY << endl;
 	cout << "x - y = " << XX-YY << endl;
-	ZZ f1 = GCD(XX+YY,ZZ(n));
-	ZZ f2 = GCD(XX-YY,ZZ(n));
+	Int f1 = GCD(XX+YY,Int(n));
+	Int f2 = GCD(XX-YY,Int(n));
 	cout << "GCD(x+y,n) = " << f1 << endl;
 	cout << "GCD(x-y,n) = " << f2 << endl;
-	return (f1 > 1 && f1 < ZZ(n)) || (f2 > 1 && f2 < ZZ(n));
+	return (f1 > 1 && f1 < Int(n)) || (f2 > 1 && f2 < Int(n));
 }
 
 int main(int argc, char *argv[])
