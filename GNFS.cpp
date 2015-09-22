@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <iostream>
+#include <iomanip>
 #include <cmath>
 #include <set>
 #include <cassert>
@@ -14,6 +15,20 @@
 #define Intp  ZZ_p
 #define IntX  ZZX
 #define IntpX ZZ_pX
+
+#define DEBUG 1
+
+#if(DEBUG)
+#define PRINT_MDF 1
+#define PRINT_PROCESS 1
+#define PRINT_RATIONAL_BASE 1
+#define PRINT_ALGEBRAIC_BASE 1
+#define PRINT_QUADRATIC_BASE 1
+#define PRINT_SELECTED_ABPAIRS 1
+//#define PRINT_MATRIX 1
+#define PRINT_SELECTED_SQUARE_ABPAIRS 1
+#define PRINT_PRIMES 1
+#endif
 
 using namespace std;
 using namespace NTL;
@@ -52,16 +67,16 @@ long tol(Intp k)
  * m: the number selected
  * d: degree of the polynomial
  */
-void selectPolynomial(Int n, IntX &f, Int *m, Int *d)
+void selectPolynomial(Int n, IntX &f, Int &m, Int &d)
 {
-	*d = pow(3*log(n)/log(log(n)),0.333)+1;
-	*m = pow(tol(n),1.0/tol(*d));
-	f.SetLength(tol(*d)+1);
-	for(int i = 0; i <= *d; i++)
+	d = pow(3*log(n)/log(log(n)),0.333);
+	if(d % 2 == 0) d++;
+	m = pow(tol(n),1.0/tol(d));
+	f.SetLength(tol(d)+1);
+	for(int i = 0; i <= d; i++)
 	{
-		Int tmp = n % *m;
-		SetCoeff(f,i,tmp);
-		n /= *m;
+		SetCoeff(f,i,n % m);
+		n /= m;
 	}
 }
 
@@ -156,7 +171,7 @@ bool randombool(double p)
 	return rand() < RAND_MAX * p;
 }
 
-void sieve(IntX &f, Int *RB, Int nRB, MyPair *AB, Int nAB, MyPair *result, Int num, Int N, Int m)
+void sieve(IntX &f, Int *RB, Int nRB, MyPair *AB, Int nAB, MyPair *abPairs, Int num, Int N, Int m)
 {
 	Int loc(0);
 	Int *r_sieve_array = new Int[tol(2*N+1)];
@@ -176,7 +191,7 @@ void sieve(IntX &f, Int *RB, Int nRB, MyPair *AB, Int nAB, MyPair *result, Int n
 			{
 				if(randombool(0.8))
 				{
-					result[tol(loc)] = MyPair(i-N, Int(b));
+					abPairs[tol(loc)] = MyPair(i-N, Int(b));
 					loc++;
 					if(loc >= num) break;
 				}
@@ -492,44 +507,25 @@ double doublesum(double array[], Int l, Int r)
 	return doublesum(array,l,(l+r)/2) + doublesum(array,(l+r)/2,r);
 }
 
-bool NFS(Int n)
+Int boundForSmoothness(long d, Int n)
 {
-	srand((unsigned)time(0));
-	IntX f;
-	Int m, d;
-	selectPolynomial(n,f,&m,&d);
-	printf("m=%ld\n",tol(m));
-	printf("d=%ld\n",tol(d));
-	printf("f(x)=");
-	cout << f << endl;
-	
-    /*  choose y - the bound for smoothness  */
-    double dlogd = tol(d)*log(tol(d));
-    double temp = 1.0/tol(d) * log( tol(n) );
-    double e = dlogd + sqrt( dlogd*dlogd + 4*temp*log(temp) );
-    Int y((long)(1.5*exp( 0.5*e )));
-    printf( "smoothness bound is %ld.\n", tol(y));
-	
-	/* Prepare the rational base */
-	printf("Preparing the rational base.\n");
-	Int RB[256], nRB(0);
-	primeSieve(RB, &nRB, y);
+	double dlogd = d*log(d);
+	double temp = 1.0/d * log(n);
+	double e = dlogd + sqrt(dlogd*dlogd + 4*temp*log(temp));
+	return Int(INIT_VAL,1.5*exp(0.5*e));
+}
+
+void prepareRationalBase(Int *RB, Int &nRB, Int bound)
+{
+	primeSieve(RB, &nRB, bound);
 	assert(nRB <= 256);
-	printf("Rational base.\n");
-	for(long i = 0; i < nRB; i++)
+}
+
+void prepareAlgebraicBase(MyPair *AB, Int &nAB, Int *primes, Int size, IntX &f)
+{
+	for(long i = 0; i < size; i++)
 	{
-		if(i && i % 10 == 0) printf("\n");
-		printf("%6ld ",tol(RB[i]));
-	}
-	printf("\n");
-	
-	/* Prepare the algebraic base */
-	printf("Preparing the algebraic base.\n");
-	MyPair AB[256];
-	Int nAB(0);
-	for(long i = 0; i < nRB; i++)
-	{
-		Int p = RB[i];
+		Int p = primes[i];
 		Int roots[16], nroot;
 		rootsMod(f,p,roots,&nroot);
 		for(long j = 0; j < nroot; j++)
@@ -539,22 +535,16 @@ bool NFS(Int n)
 		}
 	}
 	assert(nAB <= 256);
-	printf("Algebraic base.\n");
-	for(long i = 0; i < nAB; i++)
-	{
-		if(i && i % 10 == 0) printf("\n");
-		printf("(%ld,%ld) ",tol(AB[i].r),tol(AB[i].p));
-	}
-	printf("\n");
+}
 
-	/* Prepare the quadratic base */
-	MyPair QB[256]; Int nQB(0);
+void prepareQuadraticBase(MyPair *QB, Int &nQB, Int min, Int max, IntX &f)
+{
 	Int pQB[256]; Int np;
-	primeSieve(pQB, &np, 2*y);
+	primeSieve(pQB, &np, max);
 	for(long i = 0; i < np; i++)
 	{
 		Int p = pQB[i];
-		if(p <= y) continue;
+		if(p <= min) continue;
 		Int roots[16], nroot;
 		rootsMod(f,p,roots,&nroot);
 		for(long j = 0; j < nroot; j++)
@@ -564,37 +554,43 @@ bool NFS(Int n)
 		}
 	}
 	assert(nQB <= 256);
-	printf("Quadratic base.\n");
-	for(long i = 0; i < nQB; i++)
-	{
-		if(i && i % 10 == 0) printf("\n");
-		printf("(%ld,%ld) ",tol(QB[i].r),tol(QB[i].p));
-	}
-	printf("\n");
+}
 
-	/*Sieve*/
-	MyPair result[513];
-	Int num = 2+nRB+nAB+nQB;
-	printf("Sieving...\n");
-	sieve(f, RB, nRB, AB, nAB, result, num, y*5, m);
-	printf("Selected smooth (a,b) pairs\n");
-	for(long i = 0; i < num; i++)
+void printListOfNumbers(Int *A, long s, long N)
+{
+	for(long i = 0; i < s; i++)
 	{
-		if(i && i % 10 == 0) printf("\n");
-		printf("(%ld,%ld) ",tol(result[i].r),tol(result[i].p));
+		if(N && i && i % N == 0) cout << endl;
+		cout << setw(6) << tol(A[i]);
 	}
-	printf("\n");
+	cout << endl;
+}
 
-	/*Form matrix*/
-	printf("Forming the matrix...\n");
-	Int I = num-1, J = num;
-	int **matrix = new int*[tol(I)];
+void printListOfPairs(MyPair *A, long s, long N)
+{
+	for(long i = 0; i < s; i++)
+	{
+		if(N && i && i % N == 0) cout << endl;
+		cout << "(" << A[i].r << "," << A[i].p << ") ";
+	}
+	cout << endl;
+}
+
+int **allocMatrix(long I, long J)
+{
+	int **matrix = new int*[I];
 	for(long i = 0; i < I; i++)
-		matrix[i] = new int[tol(J)];
+		matrix[i] = new int[J];
+	return matrix;
+}
+
+void formMatrix(int **matrix, Int I, Int J, Int m, ZZX &f, MyPair *abPairs,
+				Int *RB, Int nRB, MyPair* AB, Int nAB, MyPair* QB, Int nQB)
+{
 	for(long j = 0; j < J; j++)
 	{
-		Int a = result[j].r;
-		Int b = result[j].p;
+		Int a = abPairs[j].r;
+		Int b = abPairs[j].p;
 		Int A = a+b*m;
 		matrix[0][j] = A >= 0? 0: 1;
 		for(long i = 0; i < nRB; i++)
@@ -632,213 +628,355 @@ bool NFS(Int n)
 			matrix[tol(i+1+nRB+nAB)][j] = (l == 1? 0: 1);
 		}
 	}
+}
 
-	/*Print the matrix*/
-#if 0
-	for(int i = 0; i < I; i++)
+void printMatrix(int **matrix, long I, long J)
+{
+	for(long i = 0; i < I; i++)
 	{
-		for(int j = 0; j < J; j++)
+		for(long j = 0; j < J; j++)
 			printf("%d ",matrix[i][j]);
 		printf("\n");
 	}
 	printf("\n");
-#endif
-	int *vec = new int[tol(J)];
-	solveMatrix(matrix,I,J,vec);
+}
 
+void freeMatrix(int **matrix, long I)
+{
 	for(long i = 0; i < I; i++)
 		delete[] matrix[i];
 	delete[] matrix;
-	delete[] vec;
+}
 
-	/*Print the selected*/
-	printf("The selected (a,b) pairs whose product is square in both Z and Z[X]\n");
-	Int count(0);
-	for(long i = 0; i < J; i++)
-		if(vec[i])
-		{
-			printf("(%ld,%ld) ",tol(result[i].r),tol(result[i].p));
-			count++;
-			if(count % 10 == 0) printf("\n");
-		}
-	printf("\n");
-
-	/*Calculate prod(a+bm)*/
-	printf("Computing prod(a+bm)...\n");
-	Int s(1);
-	for(long i = 0; i < J; i++)
+void select(MyPair *pairs, int *vec, long I, Int &n)
+{
+	long loc = 0;
+	for(long i = 0; i < I; i++)
 	{
-		Int a = result[i].r;
-		Int b = result[i].p;
+		if(vec[i]) pairs[loc++] = pairs[i];
+	}
+	n = Int(loc);
+}
+
+Int sqrtProductOfPairs(MyPair *pairs, long num, Int m)
+{
+	Int s(1);
+	for(long i = 0; i < num; i++)
+	{
+		Int a = pairs[i].r;
+		Int b = pairs[i].p;
 		Int t(a+b*m);
-		if(vec[i]) s *= t;
+		s *= t;
 	}
 	Int r = SqrRoot(s);
 	/*Check that s is indeed a square number.*/
 	assert(r*r == s);
+	return r;
+}
 
-	/*Calculate prod(a+b theta)*/
-	printf("Computing prod(a+b theta)/f(theta)\n");
-	Int Nm(1);
+IntX productOfPairs(MyPair *abPairs, long num, ZZX &f, Int &Nm)
+{
 	IntX sx(1);
-	Int phibeta2(0);
-	for(long i = 0; i < J; i++)
+	Nm = Int(1);
+	for(long i = 0; i < num; i++)
 	{
-		Int a = result[i].r;
-		Int b = result[i].p;
+		Int a = abPairs[i].r;
+		Int b = abPairs[i].p;
 		IntX gx(INIT_SIZE,2);
 		SetCoeff(gx,0,a);
 		SetCoeff(gx,1,b);
-		if(vec[i])
-		{
-			sx *= gx;
-			sx %= f;
-			Nm *= norm(f,a,b);
-		}
-	}
-	printf("delta = Prod(a+b theta) = ");
-	cout << sx << endl;
-
-	/*Compute phi(beta^2) for checking*/
-	Int pm(1);
-	for(long i = 0; i < d; i++)
-	{
-		phibeta2 += sx[i] * pm;
-		pm *= m;
+		MulMod(sx,sx,gx,f);
+		Nm *= norm(f,a,b);
 	}
 	/*Check that Nm is square*/
 	Int NN = SqrRoot(Nm);
 	assert(NN * NN == Nm);
 	Nm = NN;
-	/*Calculate x = phi(beta)*/
-	/*1. Estimate an uppder bound for x*/
-	printf("Computing phi(beta) mod n...\n");
-	printf("----Selecting primes p_i such that prod p_i > x\n");
+	return sx;
+}
+
+Int estimateUpperBoundForX(ZZX &delta, Int m, Int d)
+{
 	Int S(0);
-	Int pom(1);
+	Int pom(1); /*power of m*/
 	for(long i = 0; i < d; i++)
 	{
-		Int c = sx[i];
+		Int c = delta[i];
 		if(c < 0) c = -c;
 		c = SqrRoot(c) * 100;
 		S += c * pom;
 		pom *= m;
 	}
-	/*2. Select p_i that Prod p_i > x*/
-	Int bound(100000);
-	Int primes[10000], nprimes;
-	primeSieve(primes,&nprimes,bound);
-	Int ps[10000], nps(0);
-	while(S > 1)
+	return S;
+}
+
+void selectPrimesCoverX(Int *primes, Int &nprimes, Int upperBound, Int d, ZZX &f)
+{
+	Int ps[10000], nps, bound(100000);
+	nprimes = Int(0);
+	primeSieve(ps,&nps,bound);
+	while(upperBound > 1)
 	{
-		nprimes--;
-		Int p = primes[tol(nprimes)];
+		nps--;
+		Int p = ps[tol(nps)];
 		if(legal(f,p,d))
 		{
-			ps[tol(nps)] = p;
-			nps++;
-			S = S / p + 1;
+			primes[tol(nprimes)] = p;
+			nprimes++;
+			upperBound = upperBound / p + 1;
 		}
 	}
-#if 1
-	printf("--------Selected primes: ");
-	for(long i = 0; i < nps; i++)
-		printf("%ld ",tol(ps[i]));
-	printf("\n");
-#endif
-	/*3. Compute x_i = x mod p_i*/
-	printf("----Computing x_i = x mod p_i\n");
-	Int X[10000];
-	for(long i = 0; i < nps; i++)
+}
+
+void computeSquareRoots(Int *XmodPi, Int *primes, Int nprimes, IntX &delta,
+						IntX &f, Int m, Int Nm)
+{
+	for(long i = 0; i < nprimes; i++)
 	{
-		Int p = ps[i];
-		X[i] = computeSquareRoot(sx,f,p,m,Nm);
-		/*Check x^2 mod pi*/
-		// cout << (Int(X[i])*Int(X[i])) % Int(p) << endl;
-		// cout << phibeta2 % Int(p) << endl;
-		// assert(Int(X[i])*Int(X[i]) % Int(p) == phibeta2 % Int(p));
+		Int p = primes[i];
+		XmodPi[i] = computeSquareRoot(delta,f,p,m,Nm);
 	}
-	/*4. Compute x mod n*/
-	/*Compute the real answer*/
-#if 0
+}
+
+void computePinvs(Int *Pinv, Int *primes, Int nprimes)
+{
+	for(long i = 0; i < nprimes; i++)
 	{
-		Int z(0);
-		Int P(1);
-		for(int i = 0; i < nps; i++)
-			P *= ps[i];
-		Int Pmodn = P % Int(n);
-		for(int i = 0; i < nps; i++)
-		{
-			Int ai = InvMod((P/ps[i])%Int(ps[i]),Int(ps[i]));
-			z += ai * X[i] * (P/ps[i]);
-		}
-		Int x = z % P;
-		cout << "Real P is " << P << endl;
-		cout << "Real P mod n is " << P % Int(n) << endl;
-		cout << "Real z is " << z << endl;
-		cout << "Real r is " << z/P << endl;
-		cout << "z - rP is " << z - (z/P)*P << endl;
-		cout << "Real x is " << x << endl;
-		cout << "Real x mod n is " << x % Int(n) << endl;
-		cout << "Real x^2 mod n is " << (x*x) % n << endl;
-		for(int i = 0; i < nps; i++)
-			assert(x % Int(ps[i]) == X[i]);
-		cout << "phi(beta^2) mod n = " << phibeta2 % Int(n) << endl;
-	}
-#endif
-	/****************************/
-	printf("----Computing x from (x mod p_i) by Chinese remainder.\n");
-	Int Pinv[10000];
-	for(long i = 0; i < nps; i++)
-	{
-		Int p = ps[i];
-		Int Piinv(1);
-		for(long j = 0; j < nps; j++)
+		Int p = primes[i];
+		Pinv[i] = Int(1);
+		for(long j = 0; j < nprimes; j++)
 		{
 			if(j == i) continue;
-			Int pp = ps[j];
-			Int pinv = InvMod(pp%p,p);
-			Piinv = (Piinv*pinv)%p;
+			Int pinv = InvMod(primes[j]%p,p);
+			Pinv[i] = (Pinv[i]*pinv)%p;
 		}
-		Pinv[i] = Piinv;
 	}
+}
 
-	double array[tol(nps)];
-	for(int i = 0; i < nps; i++)
-		array[i] = tol(Pinv[i] * X[i]) / (double) tol(ps[i]);
-	Int rr((int)doublesum(array,Int(0),nps));
-	// cout << "r = " << rr << endl;
+void computeAXoP(double *AXoP,Int *Pinv,Int *XmodPi,Int *primes,Int nprimes)
+{
+	for(int i = 0; i < nprimes; i++)
+		AXoP[i] = tol(Pinv[i] * XmodPi[i]) / (double) tol(primes[i]);
+}
 
-	Int XX(0);
-	Int Pmodn(1);
-	for(long i = 0; i < nps; i++)
-		Pmodn = (Pmodn * ps[i]) % n;
-	// cout << "P mod n = " << Pmodn << endl;
+Int productMod(Int *a, Int k, Int n)
+{
+	Int s(1);
+	for(long i = 0; i < k; i++)
+		MulMod(s,s,a[i],n);
+	return s;
+}
 
-	for(long i = 0; i < nps; i++)
-		XX = (XX + Int(Pinv[i]) * Int(X[i]) * Int(Pmodn) * Int(InvMod(ps[i]%n,n))) % Int(n);
-	XX = XX - rr * Pmodn;
-	XX %= Int(n);
-	if(XX < 0) XX += n;
+Int sumOfAXPmodN(Int *Pinv, Int *XmodPi, Int Pmodn, Int *primes, Int nprimes, Int n)
+{
+	Int x(0);
+	for(long i = 0; i < nprimes; i++)
+		x = (x + Pinv[i] * XmodPi[i] * Pmodn * InvMod(primes[i]%n,n)) % n;
+	return x;
+}
 
-	Int(YY) = Int(r)%Int(n);
-	if(XX*XX%n != YY*YY%n) XX=(XX-Pmodn)%n;
-	cout << "x mod n = " << XX << endl;
-	cout << "y mod n = " << YY << endl;
+bool NFS(Int n)
+{
+	/*--------------------Select polynomial-----------------------------------*/
+	IntX f;
+	Int m, d;
+#ifdef PRINT_PROCESS
+	cout << "Selecting polynomial..." << endl;
+#endif
+	selectPolynomial(n,f,m,d);
+#ifdef PRINT_MDF
+	cout << "m = " << m << endl;
+	cout << "d = " << d << endl;
+	cout << "f(x) = " << f << endl;
+#endif
+	
+    /*--choose the bound for smoothness---------------------------------------*/
+#ifdef PRINT_PROCESS
+	cout << "Choosing smoothness bound..." << endl;
+#endif
+	Int smoothBound = boundForSmoothness(tol(d),n);
+#ifdef PRINT_SMOOTH_BOUND
+	cout << "Smoothness bound is " << smoothBound << endl;
+#endif
+	
+	/*-Prepare the rational base----------------------------------------------*/
+	Int RB[256], nRB(0);
+#ifdef PRINT_PROCESS
+	cout << "Preparing the rational base..." << endl;
+#endif
+	prepareRationalBase(RB,nRB,smoothBound);
+#ifdef PRINT_RATIONAL_BASE
+	cout << "Rational base: " << endl;
+	printListOfNumbers(RB,tol(nRB),10);
+#endif
+
+	/*-Prepare the algebraic base---------------------------------------------*/
+	MyPair AB[256];
+	Int nAB(0);
+#ifdef PRITN_PROCESS
+	cout << "Preparing the algebraic base..." << endl;
+#endif
+	prepareAlgebraicBase(AB,nAB,RB,nRB,f);
+#ifdef PRINT_ALGEBRAIC_BASE
+	cout << "Algebraic base: " << endl;
+	printListOfPairs(AB,tol(nAB),10);
+#endif
+
+	/*-Prepare the quadratic base---------------------------------------------*/
+	MyPair QB[256]; Int nQB(0);
+#ifdef PRINT_PROCESS
+	cout << "Preparing the quadratic base..." << endl;
+#endif
+	prepareQuadraticBase(QB,nQB,smoothBound,2*smoothBound,f);
+#ifdef PRINT_QUADRATIC_BASE
+	cout << "Quadratic base: " << endl;
+	printListOfPairs(QB,tol(nQB),10);
+#endif
+
+	/*----------Sieve---------------------------------------------------------*/
+	MyPair abPairs[513];
+	Int num = 2+nRB+nAB+nQB; /*Number of (a,b) pairs to search*/
+#ifdef PRINT_PROCESS
+	cout << "Sieving..." << endl;
+#endif
+	sieve(f, RB, nRB, AB, nAB, abPairs, num, smoothBound*5, m);
+#ifdef PRINT_SELECTED_ABPAIRS
+	cout << "Selected smooth (a,b) pairs: " << endl;
+	printListOfPairs(abPairs,tol(num),10);
+#endif
+
+	/*---------Form matrix----------------------------------------------------*/
+	Int I = num-1, J = num;
+	int **matrix = allocMatrix(tol(I),tol(J));
+#ifdef PRINT_PROCESS
+	cout << "Forming the matrix..." << endl;
+#endif
+	formMatrix(matrix,I,J,m,f,abPairs,RB,nRB,AB,nAB,QB,nQB);
+#ifdef PRINT_MATRIX
+	cout << "The matrix is: " << endl;
+	printMatrix(matrix,tol(I),tol(J));
+#endif
+
+	/*-------Solve the linear system------------------------------------------*/
+	int *vec = new int[tol(J)];
+#ifdef PRINT_PROCESS
+	cout << "Solving the linear system..." << endl;
+#endif
+	solveMatrix(matrix,I,J,vec);
+	freeMatrix(matrix,tol(I));
+	select(abPairs,vec,tol(J),num); /*Select the pairs corresponding to 1 in vec*/
+	delete[] vec;
+
+#ifdef PRINT_SELECTED_SQUARE_ABPAIRS
+	cout << "The selected (a,b) pairs whose product is square in both Z and Z[X]:" << endl;
+	printListOfPairs(abPairs,tol(num),10);
+#endif
+
+	/*---------Calculate prod(a+bm)-------------------------------------------*/
+#ifdef PRINT_PROCESS
+	cout << "Computing prod(a+bm)..." << endl;
+#endif
+	Int y = sqrtProductOfPairs(abPairs,tol(num),m) % n;
+
+	/*---------Calculate prod(a+b theta)--------------------------------------*/
+	Int Nm(1); /*Compute the product of the norm of (a,b) pairs, used to select
+				beta or -beta when computing square root of delta mod p*/
+#ifdef PRINT_PROCESS
+	cout << "Computing prod(a+b theta)/f(theta)..." << endl;
+#endif
+	IntX delta = productOfPairs(abPairs,tol(num),f,Nm);
+
+
+
+
+
+
+
+
+
+	/*=================Calculate x = phi(beta)================================*/
+	/*This is a big project, divide it into several parts*/
+#ifdef PRINT_PROCESS
+	cout << "Computing phi(beta) mod n..." << endl;
+#endif
+	/*1. Estimate an upper bound for x~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+	Int upperBoundOfX = estimateUpperBoundForX(delta,m,d);
+	/************************************************************************/
+
+
+
+	/*2. Select p_i that Prod p_i > x~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+	Int primes[10000], nprimes;
+#ifdef PRINT_PROCESS
+	cout << "----Selecting primes p_i such that prod p_i > x..." << endl;
+#endif
+	selectPrimesCoverX(primes,nprimes,upperBoundOfX,d,f);
+#ifdef PRINT_PRIMES
+	printf("--------Selected primes: ");
+	printListOfNumbers(primes,tol(nprimes),0);
+#endif
+	/************************************************************************/
+
+
+
+	/*3. Compute x_i = x mod p_i~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+	Int XmodPi[10000];
+#ifdef PRINT_PROCESS
+	printf("----Computing x_i = x mod p_i...\n");
+#endif
+	computeSquareRoots(XmodPi,primes,nprimes,delta,f,m,Nm);
+	/************************************************************************/
+
+
+
+	/*4. Compute x mod n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+	Int Pinv[10000]; /*Inverse of P_i mod p_i, where P_i = P/p_i, P = Prod p_i*/
+	double AXoP[tol(nprimes)];/*a_i*x_i/p_i, where a_i = Pinv[i]*/
+	Int r; /*Let z be the result of Chinese remainder, then x = z mod P,
+			and z = x + rP, so r = (z-x)/P, since x < P, r = Floor(z/P)*/
+	Int x(0); /*This in fact is x mod n*/
+	Int Pmodn(1); /*P mod n*/
+#ifdef PRINT_PROCESS
+	cout << "----Computing x from (x mod p_i) by Chinese remainder..." << endl;
+#endif
+	computePinvs(Pinv,primes,nprimes);
+	computeAXoP(AXoP,Pinv,XmodPi,primes,nprimes);
+	r = Int(INIT_VAL, doublesum(AXoP,Int(0),nprimes));
+	Pmodn = productMod(primes,nprimes,n);
+	x = (sumOfAXPmodN(Pinv,XmodPi,Pmodn,primes,nprimes,n) - r*Pmodn) % n;
+	if(x < 0) x += n;
+	/*There might be cases where x < 0, then the x obtained above is not
+	 * the real one, subtract P from it and mod n again.*/
+	if(x*x%n != y*y%n) x=(x-Pmodn)%n;
+	/************************************************************************/
+
+
+
+	/*Finally, we get our x mod n and y mod n. Time to sum up.*/
+	cout << "x mod n = " << x << endl;
+	cout << "y mod n = " << y << endl;
 	/*Check square of x and y*/
-	cout << "x^2 mod n = " << XX * XX % n << endl;
-	cout << "y^2 mod n = " << YY * YY % n << endl;
-	cout << "x + y = " << XX+YY << endl;
-	cout << "x - y = " << XX-YY << endl;
-	Int f1 = GCD(XX+YY,Int(n));
-	Int f2 = GCD(XX-YY,Int(n));
+	cout << "x^2 mod n = " << x * x % n << endl;
+	cout << "y^2 mod n = " << y * y % n << endl;
+	assert(x*x%n == y*y%n);
+	cout << "x + y = " << x+y << endl;
+	cout << "x - y = " << x-y << endl;
+	Int f1 = GCD(x+y,Int(n));
+	Int f2 = GCD(x-y,Int(n));
 	cout << "GCD(x+y,n) = " << f1 << endl;
 	cout << "GCD(x-y,n) = " << f2 << endl;
+	/*Return true if any of f1 and f2 is a proper factor of n*/
 	return (f1 > 1 && f1 < Int(n)) || (f2 > 1 && f2 < Int(n));
+}
+
+void init()
+{
+	srand((unsigned)time(0));
 }
 
 int main(int argc, char *argv[])
 {
+	init();
 	Int n(132163);
 	if(argc > 1) n = Int(atoi(argv[1]));
 	int Tries = 50;
