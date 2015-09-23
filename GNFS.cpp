@@ -6,6 +6,7 @@
 #include <cassert>
 #include <ctime>
 #include <cstdlib>
+#include <limits.h>
 #include <sstream>
 
 #include <NTL/ZZ_pXFactoring.h>
@@ -35,6 +36,8 @@ using namespace std;
 using namespace NTL;
 
 const int MaxPrimeBufSize = 2048;
+const int MaxDimOfMatrix = 2048;
+const int MaxB = 512;
 
 typedef struct MyPair
 {
@@ -64,6 +67,24 @@ long tol(Intp k)
 	return K;
 }
 
+Int findRootByDiv(Int n, Int l, Int r, long d)
+{
+	assert(power(l,d)<=n);
+	if(l >= r-1) return l;
+	Int m = (l+r)/2;
+	Int mtod = power(m,d);
+	if(mtod > n) return findRootByDiv(n,l,m,d);
+	if(mtod < n) return findRootByDiv(n,m,r,d);
+	return m;
+}
+
+Int findRootByDiv(Int n, long d)
+{
+	Int m(2), mtod = power(Int(2),d), twotod = power(Int(2),d);
+	while(mtod <= n) {mtod *= twotod; m *= 2;}
+	return findRootByDiv(n,m/2,m,d);
+}
+
 /*
  * Given integer n, return f, m, d
  * f: Integer array representing the coefficients of polynomial
@@ -76,13 +97,26 @@ void selectPolynomial(Int n, IntX &f, Int &m, Int &d)
 	assert(log(n) > 0);
 	d = pow(3*log(n)/log(log(n)),0.333);
 	if(d % 2 == 0) d++;
-	m = pow(tol(n),1.0/tol(d));
-	if(m > 20) m -= Int(rand()) % (m/5);
-	f.SetLength(tol(d)+1);
-	for(int i = 0; i <= d; i++)
+	while(true)
 	{
-		SetCoeff(f,i,n % m);
-		n /= m;
+		if(n > LONG_MAX)
+			m = findRootByDiv(n,tol(d));
+		else
+			m = pow(tol(n),1.0/tol(d));
+		if(m > 20)
+		{
+			do
+				m -= Int(rand()) % (m/8);
+			while(n % m == 0);
+		}
+		assert(power(m,tol(d)) < n);
+		f.SetLength(tol(d)+1);
+		for(int i = 0; i <= d; i++)
+		{
+			SetCoeff(f,i,n % m);
+			n /= m;
+		}
+		if(f[tol(d)] == 1 && f[0] != 0) break;
 	}
 }
 
@@ -146,7 +180,6 @@ void rationalSieve(double *sieve_array, Int sieve_len, const Int *RB, const doub
 	for(long i = 0; i < sieve_len; i++)
 	{
 		if(A+bm+i == 0) continue;
-		assert(A+bm+i > 0);
 		sieve_array[i] = -log(abs(A+bm+i));
 	}
 	
@@ -198,7 +231,7 @@ void sieve(IntX &f, const Int *RB, const double *lRB, Int nRB,
 	Int loc(0);
 	double *r_sieve_array = new double[tol(2*N+1)];
 	double *a_sieve_array = new double[tol(2*N+1)];
-	for(long b = 1; true; b++)
+	for(long b = 1; b < MaxB; b++)
 	{
 		Int bm = b * m;
 		rationalSieve(r_sieve_array, 2*N+1, RB, lRB, nRB, -N, bm);
@@ -221,6 +254,7 @@ void sieve(IntX &f, const Int *RB, const double *lRB, Int nRB,
 		}
 		if(loc >= num) break;
 	}
+	assert(loc == num);
 	num = loc;
 	delete []r_sieve_array;
 	delete []a_sieve_array;
@@ -311,9 +345,9 @@ void Swap(Int &x, Int &y)
 	y = tmp;
 }
 
-void solveMatrix(int **matrix, Int I, Int J, int *vec)
+void solveMatrix(char **matrix, Int I, Int J, int *vec)
 {
-	Int piv[1024], qiv[1024];
+	Int piv[MaxDimOfMatrix], qiv[MaxDimOfMatrix];
 	for(long i = 0; i < I; i++)
 		piv[i] = i;
 	for(long j = 0; j < J; j++)
@@ -359,17 +393,6 @@ void solveMatrix(int **matrix, Int I, Int J, int *vec)
 		}
 		minI++;
 	}
-
-#if 0
-	for(int i = 0; i < I; i++)
-	{
-		for(int j = 0; j < J; j++)
-			printf("%d ",matrix[piv[i]][qiv[j]]);
-		printf("\n");
-	}
-	printf("%d %d\n",minI,j);
-	printf("\n");
-#endif
 
 	for(long jj = j; jj < J; jj++)
 		vec[tol(qiv[jj])] = 0;
@@ -590,15 +613,15 @@ void printListOfPairs(MyPair *A, long s, long N)
 	cout << endl;
 }
 
-int **allocMatrix(long I, long J)
+char **allocMatrix(long I, long J)
 {
-	int **matrix = new int*[I];
+	char **matrix = new char*[I];
 	for(long i = 0; i < I; i++)
-		matrix[i] = new int[J];
+		matrix[i] = new char[J];
 	return matrix;
 }
 
-void formMatrix(int **matrix, Int I, Int J, Int m, ZZX &f, MyPair *abPairs,
+void formMatrix(char **matrix, Int I, Int J, Int m, ZZX &f, MyPair *abPairs,
 				Int *RB, Int nRB, MyPair* AB, Int nAB, MyPair* QB, Int nQB)
 {
 	for(long j = 0; j < J; j++)
@@ -638,13 +661,21 @@ void formMatrix(int **matrix, Int I, Int J, Int m, ZZX &f, MyPair *abPairs,
 			Int s = QB[i].r;
 			Int q = QB[i].p;
 			Int l = Leg(a+b*s,q);
+			if((a+b*s)%q==0)
+			{
+				cout << q << " divides " << a+b*s << endl;
+				cout << a << ' ' << b << endl;
+				A = norm(f,a,b);
+				cout << A << endl;
+				cout << A % q << endl;
+			}
 			assert((a+b*s)%q != 0);
 			matrix[tol(i+1+nRB+nAB)][j] = (l == 1? 0: 1);
 		}
 	}
 }
 
-void printMatrix(int **matrix, long I, long J)
+void printMatrix(char **matrix, long I, long J)
 {
 	for(long i = 0; i < I; i++)
 	{
@@ -655,7 +686,7 @@ void printMatrix(int **matrix, long I, long J)
 	printf("\n");
 }
 
-void freeMatrix(int **matrix, long I)
+void freeMatrix(char **matrix, long I)
 {
 	for(long i = 0; i < I; i++)
 		delete[] matrix[i];
@@ -703,6 +734,7 @@ IntX productOfPairs(MyPair *abPairs, long num, ZZX &f, Int &Nm)
 		Nm *= norm(f,a,b);
 	}
 	/*Check that Nm is square*/
+	assert(Nm > 0);
 	Int NN = SqrRoot(Nm);
 	assert(NN * NN == Nm);
 	Nm = NN;
@@ -721,18 +753,22 @@ Int estimateUpperBoundForX(ZZX &delta, Int m, Int d)
 		S += c * pom;
 		pom *= m;
 	}
-	return S;
+	return S * 100;
 }
 
-void selectPrimesCoverX(Int *primes, Int &nprimes, Int upperBound, Int d, ZZX &f)
+bool selectPrimesCoverX(Int *primes, Int &nprimes, Int upperBound, Int d, ZZX &f)
 {
 	Int ps[20000], nps, bound(200000);
+	if(upperBound < 10000) bound = Int(10000);
+	else bound = findRootByDiv(upperBound,10);
+	if(bound < 10000) bound = Int(10000);
+	if(bound > 200000) bound = Int(200000);
 	nprimes = Int(0);
 	primeSieve(ps,&nps,bound);
 	while(upperBound > 1)
 	{
 		nps--;
-		assert(nps >= 0);
+		if(nps < 0) return false;
 		Int p = ps[tol(nps)];
 		if(legal(f,p,d))
 		{
@@ -741,6 +777,7 @@ void selectPrimesCoverX(Int *primes, Int &nprimes, Int upperBound, Int d, ZZX &f
 			upperBound = upperBound / p + 1;
 		}
 	}
+	return true;
 }
 
 void computeSquareRoots(Int *XmodPi, Int *primes, Int nprimes, IntX &delta,
@@ -852,7 +889,7 @@ bool NFS(Int n)
 #ifdef PRINT_PROCESS
 	cout << "Preparing the quadratic base..." << endl;
 #endif
-	prepareQuadraticBase(QB,nQB,smoothBound,smoothBound+smoothBound/4,f);
+	prepareQuadraticBase(QB,nQB,smoothBound,smoothBound+smoothBound/2,f);
 #ifdef PRINT_QUADRATIC_BASE
 	cout << "Quadratic base: " << endl;
 	printListOfPairs(QB,tol(nQB),10);
@@ -872,7 +909,7 @@ bool NFS(Int n)
 
 	/*---------Form matrix----------------------------------------------------*/
 	Int I = num-1, J = num;
-	int **matrix = allocMatrix(tol(I),tol(J));
+	char **matrix = allocMatrix(tol(I),tol(J));
 #ifdef PRINT_PROCESS
 	cout << "Forming the matrix..." << endl;
 #endif
@@ -935,7 +972,7 @@ bool NFS(Int n)
 #ifdef PRINT_PROCESS
 	cout << "----Selecting primes p_i such that prod p_i > x..." << endl;
 #endif
-	selectPrimesCoverX(primes,nprimes,upperBoundOfX,d,f);
+	if(!selectPrimesCoverX(primes,nprimes,upperBoundOfX,d,f)) return false;
 #ifdef PRINT_PRIMES
 	cout << "--------Selected primes: " << endl;
 	printListOfNumbers(primes,tol(nprimes),10);
