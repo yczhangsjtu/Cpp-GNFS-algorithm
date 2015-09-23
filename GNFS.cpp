@@ -21,23 +21,23 @@
 #define DEBUG 1
 
 #if(DEBUG)
-#define PRINT_MDF 1
-#define PRINT_PROCESS 1
-#define PRINT_RATIONAL_BASE 1
-#define PRINT_ALGEBRAIC_BASE 1
-#define PRINT_QUADRATIC_BASE 1
-#define PRINT_SELECTED_ABPAIRS 1
-//#define PRINT_MATRIX 1
-#define PRINT_SELECTED_SQUARE_ABPAIRS 1
-#define PRINT_PRIMES 1
+#define PRINT_MDF
+#define PRINT_PROCESS
+//#define PRINT_RATIONAL_BASE
+//#define PRINT_ALGEBRAIC_BASE
+//#define PRINT_QUADRATIC_BASE
+//#define PRINT_SELECTED_ABPAIRS
+//#define PRINT_MATRIX
+//#define PRINT_SELECTED_SQUARE_ABPAIRS
+//#define PRINT_PRIMES
 #endif
 
 using namespace std;
 using namespace NTL;
 
-const int MaxPrimeBufSize = 2048;
-const int MaxDimOfMatrix = 2048;
-const int MaxB = 512;
+const int MaxPrimeBufSize = 4096;
+const int MaxDimOfMatrix = 4096;
+const int MaxB = 1024;
 
 typedef struct MyPair
 {
@@ -248,6 +248,9 @@ void sieve(IntX &f, const Int *RB, const double *lRB, Int nRB,
 						abPairs[tol(loc)] = MyPair(a, Int(b));
 						loc++;
 						if(loc >= num) break;
+#ifdef PRINT_PROCESS
+						cout << "\r" << loc*100/num << "%"; cout.flush();
+#endif
 					}
 				}
 			}
@@ -392,6 +395,9 @@ void solveMatrix(char **matrix, Int I, Int J, int *vec)
 				matrix[tol(piv[ii])][tol(qiv[jj])] ^= matrix[tol(piv[tol(minI)])][tol(qiv[jj])];
 		}
 		minI++;
+#ifdef PRINT_PROCESS
+		cout << "\r" << Int(j)*100/J << "%"; cout.flush();
+#endif
 	}
 
 	for(long jj = j; jj < J; jj++)
@@ -889,7 +895,7 @@ bool NFS(Int n)
 #ifdef PRINT_PROCESS
 	cout << "Preparing the quadratic base..." << endl;
 #endif
-	prepareQuadraticBase(QB,nQB,smoothBound,smoothBound+smoothBound/2,f);
+	prepareQuadraticBase(QB,nQB,smoothBound,smoothBound+Int(INIT_VAL,20*log(smoothBound)),f);
 #ifdef PRINT_QUADRATIC_BASE
 	cout << "Quadratic base: " << endl;
 	printListOfPairs(QB,tol(nQB),10);
@@ -899,7 +905,7 @@ bool NFS(Int n)
 	MyPair abPairs[2*MaxPrimeBufSize+1];
 	Int num = 2+nRB+nAB+nQB; /*Number of (a,b) pairs to search*/
 #ifdef PRINT_PROCESS
-	cout << "Sieving..." << endl;
+	cout << "Sieving for " << num << " (a,b) pairs..." << endl;
 #endif
 	sieve(f, RB, lRB, nRB, AB, lAB, nAB, abPairs, num, smoothBound*20, m);
 #ifdef PRINT_SELECTED_ABPAIRS
@@ -1053,11 +1059,16 @@ void init()
 
 int main(int argc, char *argv[])
 {
-	init();
-	Int n(132163);
+	init(); Int n;
 	if(argc > 1)
 	{
 		istringstream is(argv[1]);
+		is >> n;
+	}
+	else
+	{
+		char num[] = "1125899906842625";
+		istringstream is(num);
 		is >> n;
 	}
 	cout << "n = " << n << endl;
