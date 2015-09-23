@@ -6,6 +6,7 @@
 #include <cassert>
 #include <ctime>
 #include <cstdlib>
+#include <sstream>
 
 #include <NTL/ZZ_pXFactoring.h>
 #include <NTL/matrix.h>
@@ -32,6 +33,8 @@
 
 using namespace std;
 using namespace NTL;
+
+const int MaxPrimeBufSize = 2048;
 
 typedef struct MyPair
 {
@@ -69,9 +72,12 @@ long tol(Intp k)
  */
 void selectPolynomial(Int n, IntX &f, Int &m, Int &d)
 {
+	assert(n > 0);
+	assert(log(n) > 0);
 	d = pow(3*log(n)/log(log(n)),0.333);
 	if(d % 2 == 0) d++;
 	m = pow(tol(n),1.0/tol(d));
+	if(m > 20) m -= Int(rand()) % (m/5);
 	f.SetLength(tol(d)+1);
 	for(int i = 0; i <= d; i++)
 	{
@@ -80,39 +86,9 @@ void selectPolynomial(Int n, IntX &f, Int &m, Int &d)
 	}
 }
 
-/*
- * sieve_array: The array to accumulate
- * RB: Factor base
- * nRB: Size of factor base
- * sieve_len: sieve length
- */
-void rationalSieve(Int *sieve_array, Int sieve_len, Int *RB, Int nRB, Int A, Int bm)
+bool randombool(double p)
 {
-	/*Zerolize the sieve array*/
-	for(long i = 0; i < sieve_len; i++)
-		sieve_array[i] = A+bm+i;
-	
-	/*printf("Before sieve.\n");
-	for(int i = 0; i < sieve_len; i++)
-		printf("%ld ",sieve_array[i]);
-	printf("\n");*/
-	for(long i = 0; i < nRB; i++)
-	{
-		Int p = RB[i];
-		Int f = A+bm;
-		Int loc = f % p == 0? Int(0): p - (f % p);
-		
-		while(loc < sieve_len)
-		{
-			while(sieve_array[tol(loc)] != 0 && sieve_array[tol(loc)] % p ==0)
-				sieve_array[tol(loc)] /= p;
-			loc += p;
-		}
-	}
-	/*printf("After sieve.\n");
-	for(int i = 0; i < sieve_len; i++)
-		printf("%ld ",sieve_array[i]);
-	printf("\n");*/
+	return rand() < RAND_MAX * p;
 }
 
 Int norm(IntX &f, Int a, Int b)
@@ -136,16 +112,70 @@ Int norm(IntX &f, Int a, Int b)
 	return s;
 }
 
-void algebraicSieve(Int *nf_sieve_array, IntX &f, MyPair *AB, Int nAB, Int sieve_len, Int A, Int b)
+bool isSmooth(Int num, const Int *ps, Int np)
+{
+	for(long i = 0; i < np; i++)
+	{
+		Int p = ps[i];
+		while(num > 0 && num % p == 0)
+			num /= p;
+	}
+	return num == 1;
+}
+
+bool isSmooth(Int num, const MyPair *ps, Int np)
+{
+	for(long i = 0; i < np; i++)
+	{
+		Int p = ps[i].p;
+		while(num > 0 && num % p == 0)
+			num /= p;
+	}
+	return num == 1;
+}
+
+/*
+ * sieve_array: The array to accumulate
+ * RB: Factor base
+ * nRB: Size of factor base
+ * sieve_len: sieve length
+ */
+void rationalSieve(double *sieve_array, Int sieve_len, const Int *RB, const double *lRB, Int nRB, Int A, Int bm)
+{
+	/*Zerolize the sieve array*/
+	for(long i = 0; i < sieve_len; i++)
+	{
+		if(A+bm+i == 0) continue;
+		assert(A+bm+i > 0);
+		sieve_array[i] = -log(abs(A+bm+i));
+	}
+	
+	for(long i = 0; i < nRB; i++)
+	{
+		Int p = RB[i];
+		if(p < 0) cout << i << ' ' << RB[i] << ' ' << p << endl;
+		Int f = A+bm;
+		Int loc = f % p == 0? Int(0): p - (f % p);
+		
+		while(loc < sieve_len)
+		{
+			sieve_array[tol(loc)] += lRB[i];
+			loc += p;
+		}
+	}
+}
+
+void algebraicSieve(double *nf_sieve_array, IntX &f, const MyPair *AB, const double *lAB, Int nAB, Int sieve_len, Int A, Int b)
 {
 	/*Zerolize the sieve array*/
 	for(int i = 0; i < sieve_len; i++)
-		nf_sieve_array[i] = norm(f,A+i,b);
+	{
+		Int nm = abs(norm(f,A+i,b));
+		if(nm==0) continue;
+		assert(nm > 0);
+		nf_sieve_array[i] = -log(nm);
+	}
 	
-	/*printf("Before sieve.\n");
-	for(int i = 0; i < sieve_len; i++)
-		printf("%ld ",nf_sieve_array[i]);
-	printf("\n");*/
 	for(long i = 0; i < nAB; i++)
 	{
 		Int p = AB[i].p;
@@ -155,45 +185,37 @@ void algebraicSieve(Int *nf_sieve_array, IntX &f, MyPair *AB, Int nAB, Int sieve
 		
 		while(loc < sieve_len)
 		{
-			while(nf_sieve_array[tol(loc)] != 0 && (g+loc)%p==0 && nf_sieve_array[tol(loc)] % p ==0)
-				nf_sieve_array[tol(loc)] /= p;
+			assert(p > 0);
+			nf_sieve_array[tol(loc)] += lAB[i];
 			loc += p;
 		}
 	}
-	/*printf("After sieve.\n");
-	for(int i = 0; i < sieve_len; i++)
-		printf("%ld ",nf_sieve_array[i]);
-	printf("\n");*/
 }
 
-bool randombool(double p)
-{
-	return rand() < RAND_MAX * p;
-}
-
-void sieve(IntX &f, Int *RB, Int nRB, MyPair *AB, Int nAB, MyPair *abPairs, Int num, Int N, Int m)
+void sieve(IntX &f, const Int *RB, const double *lRB, Int nRB,
+		   const MyPair *AB, const double *lAB, Int nAB, MyPair *abPairs, Int num, Int N, Int m)
 {
 	Int loc(0);
-	Int *r_sieve_array = new Int[tol(2*N+1)];
-	Int *a_sieve_array = new Int[tol(2*N+1)];
+	double *r_sieve_array = new double[tol(2*N+1)];
+	double *a_sieve_array = new double[tol(2*N+1)];
 	for(long b = 1; true; b++)
 	{
-		//printf("Sieve with b = %d\n",b);
 		Int bm = b * m;
-		//printf("Rational sieve.\n");
-		rationalSieve(r_sieve_array, 2*N+1, RB, nRB, -N, bm);
-		//printf("Algebraic sieve.\n");
-		algebraicSieve(a_sieve_array, f, AB, nAB, 2*N+1, -N, Int(b));
-		//printf("Searching for smooth pairs.\n");
+		rationalSieve(r_sieve_array, 2*N+1, RB, lRB, nRB, -N, bm);
+		algebraicSieve(a_sieve_array, f, AB, lAB, nAB, 2*N+1, -N, Int(b));
 		for(long i = 0; i < 2*N+1; i++)
 		{
-			if(abs(r_sieve_array[i]) == 1 && abs(a_sieve_array[i]) == 1 && GCD(i-N,Int(b))==1)
+			Int a = i - N;
+			if(r_sieve_array[i] >= -5.0 && a_sieve_array[i] >= -5.0 && GCD(a,Int(b))==1)
 			{
-				if(randombool(0.8))
+				if(randombool(0.9))
 				{
-					abPairs[tol(loc)] = MyPair(i-N, Int(b));
-					loc++;
-					if(loc >= num) break;
+					if(isSmooth(abs(a+bm),RB,nRB) && isSmooth(abs(norm(f,a,(Int)b)),AB,nAB))
+					{
+						abPairs[tol(loc)] = MyPair(a, Int(b));
+						loc++;
+						if(loc >= num) break;
+					}
 				}
 			}
 		}
@@ -206,22 +228,23 @@ void sieve(IntX &f, Int *RB, Int nRB, MyPair *AB, Int nAB, MyPair *abPairs, Int 
 
 void primeSieve(Int *result, Int *num, Int bound)
 {
-	Int *buf = new Int[tol(bound+1)];
+	bool *buf = new bool[tol(bound+1)];
 	for(long i = 2; i <= bound; i++)
-		buf[i] = Int(1);
+		buf[i] = true;
 	Int sbound = SqrRoot(bound);
 	for(long i = 2; i <= sbound; i++)
 	{
 		if(buf[i] != 1) continue;
 		for(int j = 2*i; j <= bound; j += i)
-			buf[j] = 0;
+			buf[j] = false;
 	}
 	*num = 0;
 	for(long i = 2; i <= bound; i++)
 	{
-		if(tol(buf[i]))
+		if(buf[i])
 		{
-			result[tol(*num)] = i;
+			long l = tol(*num);
+			result[l] = i;
 			(*num)++;
 		}
 	}
@@ -232,6 +255,7 @@ void rootsMod(IntX &f, Int p, Int *roots, Int *nroot)
 {
 	Int d(deg(f));
 	Int q(p);
+	assert(q > 1);
 	Intp::init(q);
 	IntpX g(INIT_SIZE,tol(d+1));
 	for(int i = 0; i <= d; i++)
@@ -348,14 +372,10 @@ void solveMatrix(int **matrix, Int I, Int J, int *vec)
 #endif
 
 	for(long jj = j; jj < J; jj++)
-		vec[tol(qiv[jj])] = 1;
+		vec[tol(qiv[jj])] = 0;
+	vec[tol(qiv[j])] = 1;
 	for(long i = 0; i < minI; i++)
-		vec[tol(qiv[i])] = 0;
-	for(long jj = j; jj < J; jj++)
-	{
-		for(long i = 0; i < minI; i++)
-			vec[tol(qiv[i])] ^= matrix[tol(piv[i])][tol(qiv[jj])];
-	}
+		vec[tol(qiv[i])] = matrix[tol(piv[i])][tol(qiv[j])];
 }
 
 void modpower(IntpX &px, IntpX sx, IntpX fx, Int e)
@@ -375,7 +395,8 @@ void modpower(IntpX &px, IntpX sx, IntpX fx, Int e)
 
 bool legal(IntX &fx, Int p, Int d)
 {
-	Intp::init(Int(p));
+	assert(p > 1);
+	Intp::init(p);
 	IntpX Fx(INIT_SIZE,tol(d+1));
 	for(long i = 0; i <= d; i++)
 	{
@@ -417,8 +438,8 @@ Int computeOrder(IntpX px, IntpX fx)
 Int computeSquareRoot(IntX sx, IntX &f, Int p, Int m, Int Nm)
 {
 	Int d(deg(f));
-	Int zp(p);
-	Intp::init(zp);
+	assert(p > 1);
+	Intp::init(p);
 	IntpX Fx(INIT_SIZE,tol(d+1));
 	for(int i = 0; i <= d; i++)
 	{
@@ -428,10 +449,10 @@ Int computeSquareRoot(IntX sx, IntX &f, Int p, Int m, Int Nm)
 	IntpX Sx(INIT_SIZE,tol(d));
 	for(int i = 0; i < d; i++)
 	{
-		Intp c(INIT_VAL, sx[i] % zp);
+		Intp c(INIT_VAL, sx[i] % p);
 		SetCoeff(Sx,i,c);
 	}
-	Int q = power(zp,tol(d));
+	Int q = power(p,tol(d));
 	Int q1 = q - 1;
 	/*Check Sx is quadratic residual*/
 	IntpX Sxp;
@@ -450,15 +471,6 @@ Int computeSquareRoot(IntX sx, IntX &f, Int p, Int m, Int Nm)
 	modpower(omega,Sx,Fx,(s+1)/2);
 	selectNonResidual(eta,Fx,p,q,d);
 	modpower(zeta,eta,Fx,s);
-#if 0
-	cout << endl;
-	cout << "p = " << p << endl;
-	cout << "n = 2^" << r << "*" << s << endl;
-	cout << "eta = " << eta << endl;
-	cout << "zeta = eta^s = " << zeta << endl;
-	cout << "lambda_0 = " << lambda << endl;
-	cout << "omega_0 = " << omega << endl;
-#endif
 
 	while(lambda != 1)
 	{
@@ -471,10 +483,6 @@ Int computeSquareRoot(IntX sx, IntX &f, Int p, Int m, Int Nm)
 		lambda = lambda * pzeta2;
 		omega = omega * pzeta1;
 	}
-#if 0
-	cout << "lambda_n = " << lambda << endl;
-	cout << "omega_n = " << omega << endl;
-#endif
 	/*Check that omega_n^2 = delta*/
 	IntpX omega2 = (omega * omega) % Fx;
 	assert(Sx == omega2);
@@ -483,18 +491,17 @@ Int computeSquareRoot(IntX sx, IntX &f, Int p, Int m, Int Nm)
 	modpower(NN,omega,Fx,q1/(p-1));
 	GetCoeff(pp,NN,0);
 	conv(ppp,pp);
-	if(ppp != Nm % zp)
+	if(ppp != Nm % p)
 	{
 		omega = -omega;
 		modpower(NN,omega,Fx,q1/(p-1));
 		GetCoeff(pp,NN,0);
 		conv(ppp,pp);
-		assert(ppp == Nm % zp);
+		assert(ppp == Nm % p);
 	}
 	/*Substitute m in*/
 	Intp M;
 	eval(M,omega,Intp(INIT_VAL,m));
-	// cout << M << endl;
 	Int mm;
 	conv(mm,M);
 	return mm;
@@ -509,19 +516,24 @@ double doublesum(double array[], Int l, Int r)
 
 Int boundForSmoothness(long d, Int n)
 {
+	assert(d > 0);
 	double dlogd = d*log(d);
+	assert(n > 0);
 	double temp = 1.0/d * log(n);
+	assert(temp > 0);
 	double e = dlogd + sqrt(dlogd*dlogd + 4*temp*log(temp));
-	return Int(INIT_VAL,1.5*exp(0.5*e));
+	return Int(INIT_VAL,exp(0.5*e));
 }
 
-void prepareRationalBase(Int *RB, Int &nRB, Int bound)
+void prepareRationalBase(Int *RB, double *lRB, Int &nRB, Int bound)
 {
 	primeSieve(RB, &nRB, bound);
-	assert(nRB <= 256);
+	assert(nRB <= MaxPrimeBufSize);
+	for(int i = 0; i < nRB; i++)
+		lRB[i] = log(RB[i]);
 }
 
-void prepareAlgebraicBase(MyPair *AB, Int &nAB, Int *primes, Int size, IntX &f)
+void prepareAlgebraicBase(MyPair *AB, double *lAB, Int &nAB, Int *primes, Int size, IntX &f)
 {
 	for(long i = 0; i < size; i++)
 	{
@@ -534,12 +546,14 @@ void prepareAlgebraicBase(MyPair *AB, Int &nAB, Int *primes, Int size, IntX &f)
 			nAB++;
 		}
 	}
-	assert(nAB <= 256);
+	assert(nAB <= MaxPrimeBufSize);
+	for(int i = 0; i < nAB; i++)
+		lAB[i] = log(AB[i].p);
 }
 
 void prepareQuadraticBase(MyPair *QB, Int &nQB, Int min, Int max, IntX &f)
 {
-	Int pQB[256]; Int np;
+	Int pQB[MaxPrimeBufSize]; Int np;
 	primeSieve(pQB, &np, max);
 	for(long i = 0; i < np; i++)
 	{
@@ -553,7 +567,7 @@ void prepareQuadraticBase(MyPair *QB, Int &nQB, Int min, Int max, IntX &f)
 			nQB++;
 		}
 	}
-	assert(nQB <= 256);
+	assert(nQB <= MaxPrimeBufSize);
 }
 
 void printListOfNumbers(Int *A, long s, long N)
@@ -561,7 +575,7 @@ void printListOfNumbers(Int *A, long s, long N)
 	for(long i = 0; i < s; i++)
 	{
 		if(N && i && i % N == 0) cout << endl;
-		cout << setw(6) << tol(A[i]);
+		cout << setw(10) << tol(A[i]);
 	}
 	cout << endl;
 }
@@ -703,7 +717,7 @@ Int estimateUpperBoundForX(ZZX &delta, Int m, Int d)
 	{
 		Int c = delta[i];
 		if(c < 0) c = -c;
-		c = SqrRoot(c) * 100;
+		c = SqrRoot(c);
 		S += c * pom;
 		pom *= m;
 	}
@@ -712,12 +726,13 @@ Int estimateUpperBoundForX(ZZX &delta, Int m, Int d)
 
 void selectPrimesCoverX(Int *primes, Int &nprimes, Int upperBound, Int d, ZZX &f)
 {
-	Int ps[10000], nps, bound(100000);
+	Int ps[20000], nps, bound(200000);
 	nprimes = Int(0);
 	primeSieve(ps,&nps,bound);
 	while(upperBound > 1)
 	{
 		nps--;
+		assert(nps >= 0);
 		Int p = ps[tol(nps)];
 		if(legal(f,p,d))
 		{
@@ -775,6 +790,14 @@ Int sumOfAXPmodN(Int *Pinv, Int *XmodPi, Int Pmodn, Int *primes, Int nprimes, In
 	return x;
 }
 
+Int sumOfAXP(Int *Pinv, Int *XmodPi, Int P, Int *primes, Int nprimes)
+{
+	Int x(0);
+	for(long i = 0; i < nprimes; i++)
+		x += Pinv[i] * XmodPi[i] * P / primes[i];
+	return x;
+}
+
 bool NFS(Int n)
 {
 	/*--------------------Select polynomial-----------------------------------*/
@@ -800,46 +823,48 @@ bool NFS(Int n)
 #endif
 	
 	/*-Prepare the rational base----------------------------------------------*/
-	Int RB[256], nRB(0);
+	Int RB[MaxPrimeBufSize], nRB(0);
+	double lRB[MaxPrimeBufSize];
 #ifdef PRINT_PROCESS
 	cout << "Preparing the rational base..." << endl;
 #endif
-	prepareRationalBase(RB,nRB,smoothBound);
+	prepareRationalBase(RB,lRB,nRB,smoothBound);
 #ifdef PRINT_RATIONAL_BASE
 	cout << "Rational base: " << endl;
 	printListOfNumbers(RB,tol(nRB),10);
 #endif
 
 	/*-Prepare the algebraic base---------------------------------------------*/
-	MyPair AB[256];
+	MyPair AB[MaxPrimeBufSize];
+	double lAB[MaxPrimeBufSize];
 	Int nAB(0);
 #ifdef PRITN_PROCESS
 	cout << "Preparing the algebraic base..." << endl;
 #endif
-	prepareAlgebraicBase(AB,nAB,RB,nRB,f);
+	prepareAlgebraicBase(AB,lAB,nAB,RB,nRB,f);
 #ifdef PRINT_ALGEBRAIC_BASE
 	cout << "Algebraic base: " << endl;
 	printListOfPairs(AB,tol(nAB),10);
 #endif
 
 	/*-Prepare the quadratic base---------------------------------------------*/
-	MyPair QB[256]; Int nQB(0);
+	MyPair QB[MaxPrimeBufSize]; Int nQB(0);
 #ifdef PRINT_PROCESS
 	cout << "Preparing the quadratic base..." << endl;
 #endif
-	prepareQuadraticBase(QB,nQB,smoothBound,2*smoothBound,f);
+	prepareQuadraticBase(QB,nQB,smoothBound,smoothBound+smoothBound/4,f);
 #ifdef PRINT_QUADRATIC_BASE
 	cout << "Quadratic base: " << endl;
 	printListOfPairs(QB,tol(nQB),10);
 #endif
 
 	/*----------Sieve---------------------------------------------------------*/
-	MyPair abPairs[513];
+	MyPair abPairs[2*MaxPrimeBufSize+1];
 	Int num = 2+nRB+nAB+nQB; /*Number of (a,b) pairs to search*/
 #ifdef PRINT_PROCESS
 	cout << "Sieving..." << endl;
 #endif
-	sieve(f, RB, nRB, AB, nAB, abPairs, num, smoothBound*5, m);
+	sieve(f, RB, lRB, nRB, AB, lAB, nAB, abPairs, num, smoothBound*20, m);
 #ifdef PRINT_SELECTED_ABPAIRS
 	cout << "Selected smooth (a,b) pairs: " << endl;
 	printListOfPairs(abPairs,tol(num),10);
@@ -860,7 +885,7 @@ bool NFS(Int n)
 	/*-------Solve the linear system------------------------------------------*/
 	int *vec = new int[tol(J)];
 #ifdef PRINT_PROCESS
-	cout << "Solving the linear system..." << endl;
+	cout << "Solving the " << I << " by " << J << " linear system..." << endl;
 #endif
 	solveMatrix(matrix,I,J,vec);
 	freeMatrix(matrix,tol(I));
@@ -912,8 +937,8 @@ bool NFS(Int n)
 #endif
 	selectPrimesCoverX(primes,nprimes,upperBoundOfX,d,f);
 #ifdef PRINT_PRIMES
-	printf("--------Selected primes: ");
-	printListOfNumbers(primes,tol(nprimes),0);
+	cout << "--------Selected primes: " << endl;
+	printListOfNumbers(primes,tol(nprimes),10);
 #endif
 	/************************************************************************/
 
@@ -944,6 +969,11 @@ bool NFS(Int n)
 	r = Int(INIT_VAL, doublesum(AXoP,Int(0),nprimes));
 	Pmodn = productMod(primes,nprimes,n);
 	x = (sumOfAXPmodN(Pinv,XmodPi,Pmodn,primes,nprimes,n) - r*Pmodn) % n;
+
+	Int P(1);
+	for(int i = 0; i < nprimes; i++)
+		P *= primes[i];
+
 	if(x < 0) x += n;
 	/*There might be cases where x < 0, then the x obtained above is not
 	 * the real one, subtract P from it and mod n again.*/
@@ -961,12 +991,22 @@ bool NFS(Int n)
 	assert(x*x%n == y*y%n);
 	cout << "x + y = " << x+y << endl;
 	cout << "x - y = " << x-y << endl;
-	Int f1 = GCD(x+y,Int(n));
-	Int f2 = GCD(x-y,Int(n));
+	Int f1 = GCD(x+y,n);
+	Int f2 = GCD(x-y,n);
 	cout << "GCD(x+y,n) = " << f1 << endl;
 	cout << "GCD(x-y,n) = " << f2 << endl;
 	/*Return true if any of f1 and f2 is a proper factor of n*/
-	return (f1 > 1 && f1 < Int(n)) || (f2 > 1 && f2 < Int(n));
+	if(f1 > 1 && f1 < n)
+	{
+		cout << n << " = " << f1 << " * " << n/f1 << endl;
+		return true;
+	}
+	if(f2 > 1 && f2 < n)
+	{
+		cout << n << " = " << f2 << " * " << n/f2 << endl;
+		return true;
+	}
+	return false;
 }
 
 void init()
@@ -978,12 +1018,17 @@ int main(int argc, char *argv[])
 {
 	init();
 	Int n(132163);
-	if(argc > 1) n = Int(atoi(argv[1]));
+	if(argc > 1)
+	{
+		istringstream is(argv[1]);
+		is >> n;
+	}
+	cout << "n = " << n << endl;
 	int Tries = 50;
 	for(int i = 0; i < Tries; i++)
 	{
 		printf("--------------------------------------------------------------------------------\n");
-		printf("Trying for the %d time...",i+1);
+		printf("Trying for the %d time...\n",i+1);
 		if(NFS(n)) break;
 		printf("--------------------------------------------------------------------------------\n");
 	}
