@@ -35,8 +35,7 @@
 
 using namespace std;
 
-const int MaxPrimeBufSize = 4096;
-const int MaxDimOfMatrix = 4096;
+const int MaxPrimeBufSize = 16384;
 const int MaxPrime = 20000000;
 const int MaxSelectedPrimes = 10000;
 const int MaxB = 1024;
@@ -627,7 +626,7 @@ ulong boundForSmoothness(ulong d, fmpz_t n)
 	double temp = 1.0/d * fmpz_dlog(n);
 	assert(temp > 0);
 	double e = dlogd + sqrt(dlogd*dlogd + 4*temp*log(temp));
-	return exp(0.5*e);
+	return 0.5*exp(0.5*e);
 }
 
 void prepareRationalBase(ulong *RB, double *lRB, ulong &nRB, ulong bound)
