@@ -19,7 +19,7 @@
 
 #if(DEBUG)
 #define PRINT_MDF
-#define PRINT_SMOOTH_BOUND
+//#define PRINT_SMOOTH_BOUND
 #define PRINT_PROCESS
 //#define PRINT_RATIONAL_BASE
 //#define PRINT_ALGEBRAIC_BASE
@@ -27,9 +27,9 @@
 //#define PRINT_SELECTED_ABPAIRS
 //#define PRINT_MATRIX
 //#define PRINT_SELECTED_SQUARE_ABPAIRS
-#define PRINT_UPPDER_BOUND
-#define PRINT_PRIMES
-#define PRINT_XI
+//#define PRINT_UPPDER_BOUND
+//#define PRINT_PRIMES
+//#define PRINT_XI
 #endif
 
 using namespace std;
