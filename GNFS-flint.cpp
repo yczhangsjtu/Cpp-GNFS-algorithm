@@ -27,6 +27,7 @@
 //#define PRINT_SELECTED_ABPAIRS
 //#define PRINT_MATRIX
 //#define PRINT_SELECTED_SQUARE_ABPAIRS
+//#define PRINT_PROD_ABM
 //#define PRINT_UPPDER_BOUND
 //#define PRINT_PRIMES
 //#define PRINT_XI
@@ -1107,6 +1108,9 @@ bool NFS(fmpz_t n)
 	cout << "Computing prod(a+bm)..." << endl;
 #endif
 	sqrtProductOfPairs(y,abPairs,num,m);
+#ifdef PRINT_PROD_ABM
+	fmpz_print(y);cout << endl;
+#endif
 	fmpz_mod(y,y,n);
 
 	/*---------Calculate prod(a+b theta)--------------------------------------*/
@@ -1196,18 +1200,14 @@ bool NFS(fmpz_t n)
 	if(!fmpz_equal(xxmodn,yymodn))
 	{
 		fmpz_sub(x,x,Pmodn);
-		fmpz_mod(x,x,n);
 		fmpz_mul(xxmodn,x,x);
 		fmpz_mod(xxmodn,xxmodn,n);
 	}
 	/************************************************************************/
 	fmpz_clear(m);
-	fmpz_clear(y);
 	fmpz_clear(Nm);
 	fmpz_clear(upperBoundOfX);
 	fmpz_clear(rPmodn);
-	fmpz_clear(xxmodn);
-	fmpz_clear(yymodn);
 	fmpz_poly_clear(f);
 	fmpz_poly_clear(delta);
 	freeArrayOfFmpz(Pinvmodn,nprimes);
@@ -1218,6 +1218,8 @@ bool NFS(fmpz_t n)
 	fmpz_t xpy, xmy, f1, f2;
 	fmpz_init(xpy);
 	fmpz_init(xmy);
+	fmpz_init(f1);
+	fmpz_init(f2);
 	fmpz_add(xpy,x,y);
 	fmpz_sub(xmy,x,y);
 	fmpz_gcd(f1,xpy,n);
@@ -1234,8 +1236,9 @@ bool NFS(fmpz_t n)
 	printf("GCD(x-y,n) = "); fmpz_print(f2); printf("\n");
 	fmpz_clear(xpy);
 	fmpz_clear(xmy);
-	fmpz_clear(f1);
-	fmpz_clear(f2);
+	fmpz_clear(y);
+	fmpz_clear(xxmodn);
+	fmpz_clear(yymodn);
 	/*Return true if any of f1 and f2 is a proper factor of n*/
 	if(fmpz_cmp_ui(f1,1)>0 && fmpz_cmp(f1,n)<0)
 	{
@@ -1249,6 +1252,8 @@ bool NFS(fmpz_t n)
 		fmpz_print(nof1);
 		printf("\n");
 		fmpz_clear(nof1);
+		fmpz_clear(f1);
+		fmpz_clear(f2);
 		return true;
 	}
 	if(fmpz_cmp_ui(f2,1)>0 && fmpz_cmp(f2,n)<0)
@@ -1263,6 +1268,8 @@ bool NFS(fmpz_t n)
 		fmpz_print(nof2);
 		printf("\n");
 		fmpz_clear(nof2);
+		fmpz_clear(f1);
+		fmpz_clear(f2);
 		return true;
 	}
 	return false;
@@ -1291,5 +1298,6 @@ int main(int argc, char *argv[])
 		if(NFS(n)) break;
 		printf("--------------------------------------------------------------------------------\n");
 	}
+	fmpz_clear(n);
 	return 0;
 }
