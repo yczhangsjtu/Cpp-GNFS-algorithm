@@ -327,9 +327,9 @@ void sieve(fmpz_poly_t f, const ulong *RB, const double *lRB, ulong nRB,
 				}
 #ifdef PRINT_PROCESS
 				cerr << "\r" << loc << "/" << num;
-				cerr << "\t\t";
+				cerr << "        ";
 				cerr << b << "/" << MaxB;
-				cerr << "\t\t";
+				cerr << "        ";
 				cerr.flush();
 #endif
 			}
