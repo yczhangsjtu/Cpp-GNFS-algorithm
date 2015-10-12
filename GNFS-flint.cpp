@@ -19,7 +19,7 @@
 
 #if(DEBUG)
 #define PRINT_MDF
-//#define PRINT_SMOOTH_BOUND
+#define PRINT_SMOOTH_BOUND
 #define PRINT_PROCESS
 //#define PRINT_RATIONAL_BASE
 //#define PRINT_ALGEBRAIC_BASE
@@ -319,18 +319,19 @@ void sieve(fmpz_poly_t f, const ulong *RB, const double *lRB, ulong nRB,
 			fmpz_abs(nm,nm);
 			if(r_sieve_array[i] >= -5.0 && a_sieve_array[i] >= -5.0 && fmpz_is_one(gcd))
 			{
-				if(randombool(0.9))
+				if(isSmooth(abm,RB,nRB) && isSmooth(nm,AB,nAB))
 				{
-					if(isSmooth(abm,RB,nRB) && isSmooth(nm,AB,nAB))
-					{
-						abPairs[loc] = MyPair(a,b);
-						loc++;
-						if(loc >= num) break;
-#ifdef PRINT_PROCESS
-						cerr << "\r" << loc*100/num << "%"; cerr.flush();
-#endif
-					}
+					abPairs[loc] = MyPair(a,b);
+					loc++;
+					if(loc >= num) break;
 				}
+#ifdef PRINT_PROCESS
+				cerr << "\r" << loc << "/" << num;
+				cerr << "\t\t";
+				cerr << b << "/" << MaxB;
+				cerr << "\t\t";
+				cerr.flush();
+#endif
 			}
 		}
 		if(loc >= num) break;
