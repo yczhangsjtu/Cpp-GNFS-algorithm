@@ -15,13 +15,15 @@
 #include <flint/nmod_mat.h>
 #include <flint/nmod_poly.h>
 
-#define DEBUG 1
+//#define DEBUG 1
+#define PRINT_PROCESS 1
 #define ONLY_RESULT 0
+#define PRINT_SIEVE_PROCESS 0
+#define SLOW_PRINT_SIEVE_PROCESS 1
 
-#if(DEBUG)
+#if(PRINT_PROCESS)
 #define PRINT_MDF
 //#define PRINT_SMOOTH_BOUND
-#define PRINT_PROCESS
 //#define PRINT_RATIONAL_BASE
 //#define PRINT_ALGEBRAIC_BASE
 //#define PRINT_QUADRATIC_BASE
@@ -36,11 +38,22 @@
 
 using namespace std;
 
+/*******************************************************************************
+ *	Global Constants
+ ******************************************************************************/
 const int MaxPrimeBufSize = 30000;
 const int MaxPrime = 20000000;
 const int MaxSelectedPrimes = 10000;
 const int MaxB = 10240;
+const ulong MaxT = 1000000000;
 
+/*******************************************************************************
+ *	Structure definitions
+ ******************************************************************************/
+
+/**
+ *	Pair of integer
+ */
 typedef struct MyPair
 {
 	slong r;
@@ -49,6 +62,9 @@ typedef struct MyPair
 	MyPair(){r=0;p=0;}
 } MyPair;
 
+/**
+ *	Pair used in the HashTable mapping integer pairs to doubles
+ */
 typedef struct PairDouble
 {
 	MyPair p;
@@ -62,134 +78,327 @@ bool operator==(const MyPair &a, const MyPair &b)
 	return a.r == b.r && a.p == b.p;
 }
 
-class HashTable{
-public:
-	ulong _T;
-	HashTable(ulong T):_T(T){_data = new list<PairDouble>[T];}
-	~HashTable(){
-		if(_list.size()/_T >= 3)cerr << endl << "Warning: Load factor = " << (double)_list.size()/_T << endl;
-		delete []_data;
-	}
-	list<PairDouble> * _data;
-	list<MyPair> _list;
-	slong hash(const MyPair &p)
-	{
-		return (p.r*p.r+p.p+(slong)sqrt(p.r*p.r+p.p*p.p)+p.r*(_T/2))%_T;
-	}
-	void set(const MyPair &p, double v)
-	{
-		slong s = hash(p);
-		list<PairDouble>::iterator iter = _data[s].begin();
-		for(;iter!=_data[s].end();iter++)
-			if(iter->p==p) break;
-		if(iter!=_data[s].end()) iter->v=v;
-		else
-		{
-			_data[s].push_back(PairDouble(p,v));
-			_list.push_back(p);
-		}
-	}
-	void add(const MyPair &p, double v)
-	{
-		slong s = hash(p);
-		list<PairDouble>::iterator iter = _data[s].begin();
-		for(;iter!=_data[s].end();iter++)
-			if(iter->p==p) break;
-		if(iter!=_data[s].end()) iter->v+=v;
-		else
-		{
-			_data[s].push_back(PairDouble(p,v));
-			_list.push_back(p);
-		}
-	}
-	double get(const MyPair &p)
-	{
-		slong s = hash(p);
-		list<PairDouble>::iterator iter = _data[s].begin();
-		for(;iter!=_data[s].end();iter++)
-			if(iter->p==p) break;
-		if(iter!=_data[s].end()) return iter->v;
-		else return 0.0;
-	}
-	double find(const MyPair &p)
-	{
-		slong s = hash(p);
-		list<PairDouble>::iterator iter = _data[s].begin();
-		for(;iter!=_data[s].end();iter++)
-			if(iter->p==p) break;
-		return iter!=_data[s].end();
-	}
-};
-
-/*
- * Given integer n, return f, m, d
- * f: Integer array representing the coefficients of polynomial
- * m: the number selected
- * d: degree of the polynomial
- */
-void selectPolynomial(const fmpz_t n, fmpz_poly_t f, fmpz_t m, ulong &d)
-{
-	fmpz_t lead,tail,N,Nmm;
-	assert(fmpz_cmp_ui(n,0) > 0);
-	assert(fmpz_dlog(n) > 0);
-	fmpz_poly_init(f);
-	fmpz_init(m);
-	fmpz_init(N);
-	fmpz_init(lead);
-	fmpz_init(tail);
-	fmpz_init(Nmm);
-	d = pow(3*fmpz_dlog(n)/log(fmpz_dlog(n)),0.333);
-	if(d % 2 == 0) d++;
-	while(true)
-	{
-		fmpz_root(m,n,d);
-		if(fmpz_cmp_ui(m,2000)>0)
-		{
-			do
-			{
-				ulong l;
-				fmpz_t r,k;
-				if(fmpz_cmp_ui(m,2000)>0)
-					fmpz_fdiv_q_ui(r,m,1000);
-				else
-					fmpz_fdiv_q_ui(r,m,10);
-				if((l=fmpz_get_ui(r)) > RAND_MAX)
-					fmpz_sub_ui(m,m,rand());
-				else
-				{
-					fmpz_sub_ui(m,m,rand()%l);
-				}
-			} while(fmpz_divisible(n,m));
-		}
-
-		fmpz_t mtod;
-		fmpz_init(mtod);
-		fmpz_pow_ui(mtod,m,d);
-		assert(fmpz_cmp(mtod,n) < 0);
-		fmpz_clear(mtod);
-
-		fmpz_set(N,n);
-		for(int i = 0; i <= d; i++)
-		{
-			fmpz_mod(Nmm,N,m);
-			fmpz_poly_set_coeff_fmpz(f,i,Nmm);
-			fmpz_fdiv_q(N,N,m);
-		}
-		fmpz_poly_get_coeff_fmpz(lead,f,d);
-		fmpz_poly_get_coeff_fmpz(tail,f,0);
-		if(fmpz_is_one(lead) && !fmpz_is_zero(tail) && !fmpz_is_one(tail)) break;
-	}
-	fmpz_clear(lead);
-	fmpz_clear(tail);
-	fmpz_clear(N);
-	fmpz_clear(Nmm);
-}
-
 slong length(MyPair u)
 {
 	return u.p*u.p+u.r*u.r;
 }
 
+/*******************************************************************************
+ *	Definition of HashTable class
+ ******************************************************************************/
+class HashTable{
+public:
+	ulong _T;
+	HashTable(ulong T){
+		if(T > MaxT) T = MaxT;
+		_T = T;
+		_data = new list<PairDouble>[T];
+	}
+	~HashTable(){
+		if(size()/_T >= 3)
+			cerr << endl << "Warning: Load factor = "
+				 << (double)size()/_T << endl;
+		delete []_data;
+	}
+	list<PairDouble> * _data;
+	list<MyPair> _list;
+	inline ulong size(){return _list.size();}
+	slong hash(const MyPair &p)
+	{
+		return (p.r+p.p+p.r*(_T/2))%_T;
+	}
+	void set(const MyPair &p, double v)
+	{
+		/* Map pair p to value v, if not exist, insert it into the table */
+		slong s = hash(p);
+		list<PairDouble>::iterator iter = _data[s].begin();
+		for(;iter!=_data[s].end();iter++)
+		{
+			if(iter->p==p)
+			{
+				iter->v=v;
+				return;
+			}
+		}
+		_data[s].push_back(PairDouble(p,v));
+		_list.push_back(p);
+	}
+	inline void insert(const MyPair &p)
+	{
+		/* Insert pair p into table, used when the table is used as a set and
+		 * the value is unimportant. */
+		set(p,0.0);
+	}
+	void add(const MyPair &p, double v)
+	{
+		/* Add v to the value corresponding to p, if p does not exist, insert it
+		 * and set the value to v. */
+		slong s = hash(p);
+		list<PairDouble>::iterator iter = _data[s].begin();
+		for(;iter!=_data[s].end();iter++)
+			if(iter->p==p)
+			{
+				iter->v+=v;
+				return;
+			}
+		_data[s].push_back(PairDouble(p,v));
+		_list.push_back(p);
+	}
+	double get(const MyPair &p)
+	{
+		/* Get the value of pair p. If not exist, return 0. */
+		slong s = hash(p);
+		list<PairDouble>::iterator iter = _data[s].begin();
+		for(;iter!=_data[s].end();iter++)
+			if(iter->p==p) return iter->v;
+		return 0.0;
+	}
+	double find(const MyPair &p)
+	{
+		/* Return if p is contained in the table. */
+		slong s = hash(p);
+		list<PairDouble>::iterator iter = _data[s].begin();
+		for(;iter!=_data[s].end();iter++)
+			if(iter->p==p) return true;
+		return false;
+	}
+};
+
+/*******************************************************************************
+ * Tools used in the GNFS
+ ******************************************************************************/
+
+/* Tools about polynomials and norms. *****************************************/
+
+/**
+ *	Get the 'norm' of a polynomial f at pair (a,b)
+ *	The 'norm' of a polynomial f is defined by
+ *	Norm[a,b](f) = (-b)^d f(-a/b)
+ *		= a^d - c1 a^(d-1) b + c2 a^(d-2) b^2 - ... + (-1)^(d-1) cd-1 a b^(d-1)
+ *			+ (-1)^d cd b^d
+ *	where d is the degree of f, and ci are coefficients of f.
+ *	f(x) = x^d + c1 x^(d-1) + ... + cd-1 x + cd
+ */
+void norm(fmpz_t nm, const fmpz_poly_t f, const fmpz_t a, const fmpz_t b)
+{
+	fmpz_t poa,pob,mb,c,ab;
+	fmpz_init(poa); /*Power of a*/
+	fmpz_init(pob); /*Power of -b*/
+	fmpz_init(mb); /*-b*/
+	fmpz_init(c);
+	fmpz_init(ab);
+	fmpz_one(poa);
+	fmpz_one(pob);
+	fmpz_zero(nm);
+	fmpz_neg(mb,b);
+	ulong d = fmpz_poly_degree(f);
+
+	/* If a = 0, then the norm is simply (-b)^d */
+	if(fmpz_is_zero(a))
+	{
+		for(ulong i = 0; i < d; i++)
+			fmpz_mul(pob,pob,mb);
+		fmpz_poly_get_coeff_fmpz(c,f,0);
+		fmpz_mul(nm,pob,c);
+	}
+	else
+	{
+		/* First raise a to power d. */
+		for(ulong i = 0; i < d; i++)
+			fmpz_mul(poa,poa,a);
+		/* In each step multiply power of a and power of -b, add to norm
+		 * then multiply pob by -b, divide poa by a */
+		for(slong i = d; i >= 0; i--)
+		{
+			fmpz_poly_get_coeff_fmpz(c,f,i);
+			fmpz_mul(ab,poa,pob);
+			fmpz_mul(ab,ab,c);
+			fmpz_add(nm,nm,ab);
+			fmpz_mul(pob,pob,mb);
+			fmpz_fdiv_q(poa,poa,a);
+		}
+	}
+
+	fmpz_clear(poa);
+	fmpz_clear(pob);
+	fmpz_clear(mb);
+	fmpz_clear(c);
+	fmpz_clear(ab);
+}
+
+/**
+ *	Given a number num, and a set of primes in ps[], check if num can be factored
+ *	over this set of primes.
+ */
+bool isSmooth(const fmpz_t num, const ulong *ps, ulong np)
+{
+	fmpz_t k;
+	fmpz_init_set(k,num);
+	for(ulong i = 0; i < np; i++)
+	{
+		ulong p = ps[i];
+		while(!fmpz_is_zero(k) && fmpz_divisible_si(k,p))
+			fmpz_fdiv_q_ui(k,k,p);
+	}
+	fmpz_clear(k);
+	return fmpz_is_pm1(k);
+}
+
+bool isSmooth(const fmpz_t num, const MyPair *ps, ulong np)
+{
+	fmpz_t k;
+	fmpz_init_set(k,num);
+	for(ulong i = 0; i < np; i++)
+	{
+		ulong p = ps[i].p;
+		while(!fmpz_is_zero(k) && fmpz_divisible_si(k,p))
+			fmpz_fdiv_q_ui(k,k,p);
+	}
+	fmpz_clear(k);
+	return fmpz_is_pm1(k);
+}
+
+/**
+ *	Find the root of a polynomial modular prime p.
+ *
+ *	The flint library does not implement this function directly,
+ *	but polynomial factorization mod p is provided.
+ *	The Algorithm here is simply factoring f mod p first and collect
+ *	the unaries.
+ */
+void rootsMod(const fmpz_poly_t f, ulong p, ulong *roots, ulong &nroot)
+{
+#ifdef DEBUG
+	assert(p > 1);
+#endif
+	ulong d = fmpz_poly_degree(f);
+	fmpz_t c;
+	nmod_poly_factor_t fac;
+	nmod_poly_t g;
+	fmpz_init(c);
+	nmod_poly_factor_init(fac);
+	nmod_poly_factor_fit_length(fac,d);
+	nmod_poly_init(g,p);
+	for(int i = 0; i <= d; i++)
+	{
+		fmpz_poly_get_coeff_fmpz(c,f,i);
+		nmod_poly_set_coeff_ui(g,i,fmpz_mod_ui(c,c,p));
+	}
+	nmod_poly_factor(fac,g);
+
+	ulong n = fac->num;
+	nroot = 0;
+	for(long i = 0; i < n; i++)
+	{
+		nmod_poly_struct* h = fac->p+i;
+		if(nmod_poly_degree(h) == 1)
+		{
+			ulong a = nmod_poly_get_coeff_ui(h,0);
+			roots[nroot] = (p-a)%p;
+			nroot++;
+		}
+	}
+	fmpz_clear(c);
+	nmod_poly_clear(g);
+	nmod_poly_factor_clear(fac);
+}
+
+/**
+ *	Legender symbol (in fact jacobi symbol is the generalization of it)
+ *
+ *	Jacobi symbol is implemented by flint library, however, it is required
+ *	that a < p, so we have to pack it in our own function to call it with
+ *	a >= p
+ */
+int Leg(slong a, ulong p)
+{
+	fmpz_t c,q;
+	fmpz_init_set_ui(q,p);
+	fmpz_init_set_si(c,a);
+	fmpz_mod(c,c,q);
+	int l = fmpz_jacobi(c,q);
+	fmpz_clear(c);
+	fmpz_clear(q);
+	return l;
+}
+
+/**
+ *	Return true if fx is irreducible mod p.
+ */
+bool irreducibleMod(const fmpz_poly_t fx, ulong p)
+{
+	ulong d = fmpz_poly_degree(fx);
+	fmpz_t c;
+	nmod_poly_t f;
+	fmpz_init(c);
+	nmod_poly_init(f,p);
+	for(slong i = 0; i <= d; i++)
+	{
+		fmpz_poly_get_coeff_fmpz(c,fx,i);
+		nmod_poly_set_coeff_ui(f,i,fmpz_mod_ui(c,c,p));
+	}
+	int r = nmod_poly_is_irreducible(f);
+	fmpz_clear(c);
+	nmod_poly_clear(f);
+	return r;
+}
+
+/**
+ *	Select a non-quadratic-residual in the field F_p[X]/<fx>, which is easy because there are
+ *	half of them in the field.
+ *
+ *	When fx is irreducible, an elment g in F_p[x]/<fx> is nonresidual iff g to power (q-1)/2==-1
+ *	Where q = p^d, and d is the degree of fx.
+ */
+void selectNonResidual(nmod_poly_t px, const nmod_poly_t fx, ulong p, const fmpz_t e, ulong d)
+{
+	mpz_t ee;
+	mpz_init(ee);
+	fmpz_get_mpz(ee,e);
+	flint_rand_t frt;
+	flint_randinit(frt);
+	nmod_poly_t mp;
+	nmod_poly_init(mp,p);
+	while(true)
+	{
+		nmod_poly_randtest_monic(px,frt,d);
+		nmod_poly_powmod_mpz_binexp(mp,px,ee,fx);
+#ifdef DEBUG
+		assert(nmod_poly_degree(mp)==0);
+#endif
+		if(nmod_poly_get_coeff_ui(mp,0) == p-1) break;
+	}
+	flint_randclear(frt);
+	nmod_poly_clear(mp);
+	mpz_clear(ee);
+}
+
+/**
+ *	It is assume that the order of px is 2^r, this function returns the r.
+ *
+ *	That is, px^2^r mod fx = 1
+ */
+ulong computeOrder(const nmod_poly_t px, const nmod_poly_t fx)
+{
+	mp_limb_t p = nmod_poly_modulus(px);
+	nmod_poly_t g;
+	nmod_poly_init(g,p);
+	nmod_poly_set(g,px);
+	ulong i;
+	for(i = 0; i < 10000; i++)
+	{
+		if(nmod_poly_is_one(g)) break;
+		nmod_poly_powmod_ui_binexp(g,g,2,fx);
+	}
+	nmod_poly_clear(g);
+	if(i >= 10000) return -1;
+	return i;
+}
+
+/* Tools about the lattice.****************************************************/
+
+/*Gaussian lattice reduce: given two vectors definint a lattice,
+ * find the smallest basis that generates the lattice. */
 void gaussianLatticeReduce(MyPair &u, MyPair &v)
 {
 	slong lu = length(u), lv = length(v);
@@ -221,83 +430,13 @@ void gaussianLatticeReduce(MyPair &u, MyPair &v)
 	} while(lu > lv);
 }
 
-bool randombool(double p)
-{
-	return rand() < RAND_MAX * p;
-}
-
-void norm(fmpz_t nm, const fmpz_poly_t f, const fmpz_t a, const fmpz_t b)
-{
-	fmpz_t poa,pob,mb,c,ab;
-	fmpz_init(poa);
-	fmpz_init(pob);
-	fmpz_init(mb);
-	fmpz_init(c);
-	fmpz_init(ab);
-	fmpz_one(poa);
-	fmpz_one(pob);
-	fmpz_zero(nm);
-	fmpz_neg(mb,b);
-	ulong d = fmpz_poly_degree(f);
-	if(fmpz_is_zero(a))
-	{
-		for(ulong i = 0; i < d; i++)
-			fmpz_mul(pob,pob,mb);
-		fmpz_poly_get_coeff_fmpz(c,f,0);
-		fmpz_mul(nm,pob,c);
-	}
-	else
-	{
-		for(ulong i = 0; i < d; i++)
-			fmpz_mul(poa,poa,a);
-		for(slong i = d; i >= 0; i--)
-		{
-			fmpz_poly_get_coeff_fmpz(c,f,i);
-			fmpz_mul(ab,poa,pob);
-			fmpz_mul(ab,ab,c);
-			fmpz_add(nm,nm,ab);
-			fmpz_mul(pob,pob,mb);
-			fmpz_fdiv_q(poa,poa,a);
-		}
-	}
-
-	fmpz_clear(poa);
-	fmpz_clear(pob);
-	fmpz_clear(mb);
-	fmpz_clear(c);
-	fmpz_clear(ab);
-}
-
-bool isSmooth(const fmpz_t num, const ulong *ps, ulong np)
-{
-	fmpz_t k;
-	fmpz_init_set(k,num);
-	for(ulong i = 0; i < np; i++)
-	{
-		ulong p = ps[i];
-		while(fmpz_cmp_ui(k,0)!=0 && fmpz_divisible_si(k,p))
-		{
-			fmpz_fdiv_q_ui(k,k,p);
-		}
-	}
-	fmpz_clear(k);
-	return fmpz_is_pm1(k);
-}
-
-bool isSmooth(const fmpz_t num, const MyPair *ps, ulong np)
-{
-	fmpz_t k;
-	fmpz_init_set(k,num);
-	for(ulong i = 0; i < np; i++)
-	{
-		ulong p = ps[i].p;
-		while(fmpz_cmp_ui(k,0)!=0 && fmpz_divisible_si(k,p))
-			fmpz_fdiv_q_ui(k,k,p);
-	}
-	fmpz_clear(k);
-	return fmpz_is_pm1(k);
-}
-
+/**
+ *	Given C and D, and two vectors s, t, find the bound E1,E2 for s, F1,F2 for t, such that
+ *	the region {es+ft | E1<=e<=E2, F1<=f<=F2} covers the region {(c,d) | -C<=c<=C, -D<=d<=D}
+ *	as 'good' as possible.
+ *
+ *	Here the algorithm is simply taken as: stretch the vectors s,t until reaching the bound
+ */
 void getBound(slong &E1, slong &E2, slong &F1, slong &F2, slong C, slong D, MyPair s, MyPair t)
 {
 	if(s.r == 0) E1 = D/abs(s.p);
@@ -307,7 +446,7 @@ void getBound(slong &E1, slong &E2, slong &F1, slong &F2, slong C, slong D, MyPa
 		E1 = C/abs(s.r);
 		if(D/abs(s.p) < E1) E1 = D/abs(s.p);
 	}
-	E2 = E1 * 1.2;
+	E2 = E1;
 	E1 = -E1;
 	if(t.r == 0) F2 = D/abs(t.p);
 	else if(t.p == 0) F2 = C/abs(t.r);
@@ -316,22 +455,262 @@ void getBound(slong &E1, slong &E2, slong &F1, slong &F2, slong C, slong D, MyPa
 		F2 = C/abs(t.r);
 		if(D/abs(t.p) < F2) F2 = D/abs(t.p);
 	}
-	F2 = F2 * 1.2;
+	F2 = F2;
 	F1 = 1;
+#ifdef DEBUG
 	assert(E2 > 0 && F2 > 0);
+#endif
 }
 
+/* Something else**************************************************************/
+
+/**
+ *	Product of a set of numbers modular n
+ */
+void productMod(fmpz_t res, ulong *a, ulong k, const fmpz_t n)
+{
+	fmpz_one(res);
+	for(ulong i = 0; i < k; i++)
+	{
+		fmpz_mul_ui(res,res,a[i]);
+		fmpz_mod(res,res,n);
+	}
+}
+
+/**
+ *	Clear an array of fmpz_t.
+ */
+void freeArrayOfFmpz(fmpz_t *array, ulong size)
+{
+	for(ulong i = 0; i < size; i++)
+		fmpz_clear(array[i]);
+}
+
+/**
+ *	Get the sum of an array of doubles.
+ *
+ *	This is tricky and recursive method is used instead of adding them one by
+ *	one because of the properties of floating point computation in computer:
+ *	the precision is badly hurt when summing two floating point numbers significantly
+ *	different in order.
+ */
+double doublesum(double array[], ulong l, ulong r)
+{
+	if(r-l == 0) return 0;
+	if(r-l == 1) return array[l];
+	return doublesum(array,l,(l+r)/2) + doublesum(array,(l+r)/2,r);
+}
+
+/**
+ *	Some print procedures.
+ */
+void printListOfNumbers(slong *A, ulong s, ulong N)
+{
+	for(ulong i = 0; i < s; i++)
+	{
+		if(N && i && i % N == 0) cout << endl;
+		cout << setw(10) << A[i];
+	}
+	cout << endl;
+}
+
+void printListOfNumbers(ulong *A, ulong s, ulong N)
+{
+	for(ulong i = 0; i < s; i++)
+	{
+		if(N && i && i % N == 0) cout << endl;
+		cout << setw(10) << A[i];
+	}
+	cout << endl;
+}
+
+void printListOfPairs(MyPair *A, ulong s, ulong N)
+{
+	for(ulong i = 0; i < s; i++)
+	{
+		if(N && i && i % N == 0) cout << endl;
+		cout << "(" << A[i].r << "," << A[i].p << ") ";
+	}
+	cout << endl;
+}
+
+/**
+ *	Select part of an array corresponding to the 1's in a 0-1 vector,
+ *	discard the rest and keep only the selected ones, update the size of array
+ */
+void select(MyPair *pairs, int *vec, ulong I, ulong &n)
+{
+	ulong loc = 0;
+	for(ulong i = 0; i < I; i++)
+	{
+		if(vec[i]) pairs[loc++] = pairs[i];
+	}
+	n = loc;
+	assert(n > 0);
+}
+
+/*******************************************************************************
+ * Procedures of GNFS
+ ******************************************************************************/
+
+/**
+ * Given integer n, return f, m, d, such that f is a degree d polynomial,
+ * and f(m) = n.
+ *
+ * f: Integer array representing the coefficients of polynomial
+ * m: the number selected
+ * d: degree of the polynomial
+ */
+void selectPolynomial(const fmpz_t n, fmpz_poly_t f, fmpz_t m, ulong &d)
+{
+	fmpz_t lead,tail,N,Nmm;
+#ifdef DEBUG
+	assert(fmpz_cmp_ui(n,0) > 0);
+	assert(fmpz_dlog(n) > 0);
+#endif
+	fmpz_poly_init(f);
+	fmpz_init(m);
+	fmpz_init(N);
+	fmpz_init(lead);
+	fmpz_init(tail);
+	fmpz_init(Nmm);
+	/* For moderate size of n, d is usually 3. When n is very large, d could be 5. */
+	d = pow(3*fmpz_dlog(n)/log(fmpz_dlog(n)),0.333);
+	/* It is required that d is odd. */
+	if(d % 2 == 0) d++;
+	/* Loop until proper f,m are found. */
+	while(true)
+	{
+		do /* Select m. Set m to root of d first, then subtract a random number from it. */
+		{
+			fmpz_root(m,n,d); /* Set m to the d'th root of n rounded to floor. */
+			if(fmpz_cmp_ui(m,2000)>0) fmpz_sub_ui(m,m,rand()%100);
+			else if(fmpz_cmp_ui(m,100)>0) fmpz_sub_ui(m,m,rand()%10);
+		} while(fmpz_divisible(n,m));
+
+		fmpz_set(N,n); /* Make a copy of n, then compute the coefficients of f by repeatedly
+		deviding N by m and take the remainders. */
+		for(int i = 0; i <= d; i++)
+		{
+			fmpz_mod(Nmm,N,m);
+			fmpz_poly_set_coeff_fmpz(f,i,Nmm);
+			fmpz_fdiv_q(N,N,m);
+		}
+		fmpz_poly_get_coeff_fmpz(lead,f,d);
+		fmpz_poly_get_coeff_fmpz(tail,f,0);
+		/* f is required to be monic, nonzero constant term, and the constant term is not 1. */
+		if(fmpz_is_one(lead) && !fmpz_is_zero(tail) && !fmpz_is_one(tail)) break;
+	}
+	fmpz_clear(lead);
+	fmpz_clear(tail);
+	fmpz_clear(N);
+	fmpz_clear(Nmm);
+}
+
+/**
+ *	Get the bound for smoothness (that upperbound for the rational factor base)
+ */
+ulong boundForSmoothness(ulong d, const fmpz_t n)
+{
+#ifdef DEBUG
+	assert(d > 0);
+	assert(n > 0);
+#endif
+	double dlogd = d*log(d);
+	double temp = 1.0/d * fmpz_dlog(n);
+#ifdef DEBUG
+	assert(temp > 0);
+#endif
+	double e = dlogd + sqrt(dlogd*dlogd + 4*temp*log(temp));
+	return 0.5*exp(0.5*e);
+}
+
+/**
+ *	Prepare the bases
+ *
+ *	1. rational base: a set of prime numbers
+ *	2. algebraic base: a set of pairs (p,r), where p is prime number,
+ *		r is a root of f modular p.
+ *	3. quadratic base: a set of pairs (q,s), where q is a prime number,
+ *		s is a root of f modular p. It is required that (q,s) should never
+ *		divide the pairs (a,b) sieved out by the (p,r) pairs, so the smallest
+ *		q is usually larger than the largest p in algebraic base.
+ */
+void prepareRationalBase(ulong *RB, double *lRB, ulong &nRB, ulong bound)
+{
+	ulong p;
+	n_primes_t iter;
+	n_primes_init(iter);
+	for(nRB = 0; (p = n_primes_next(iter)) <= bound; nRB++)
+	{
+		RB[nRB] = p;
+		lRB[nRB] = log(RB[nRB]);
+	}
+	//slong r = rand() % (nRB/10);
+	//nRB -= r;
+	assert(nRB <= MaxPrimeBufSize);
+	n_primes_clear(iter);
+}
+
+void prepareAlgebraicBase(MyPair *AB, double *lAB, ulong &nAB, ulong size, fmpz_poly_t f)
+{
+	n_primes_t iter;
+	n_primes_init(iter);
+	for(ulong i = 0; i < size; i++)
+	{
+		ulong p = n_primes_next(iter);
+		ulong roots[16]; ulong nroot;
+		rootsMod(f,p,roots,nroot);
+		for(ulong j = 0; j < nroot; j++)
+		{
+			AB[nAB] = MyPair(roots[j],p);
+			nAB++;
+		}
+	}
+	n_primes_clear(iter);
+	assert(nAB <= MaxPrimeBufSize);
+	for(ulong i = 0; i < nAB; i++)
+		lAB[i] = log(AB[i].p);
+}
+
+void prepareQuadraticBase(MyPair *QB, ulong &nQB, ulong min, ulong max, fmpz_poly_t &f)
+{
+	ulong p;
+	n_primes_t iter;
+	n_primes_init(iter);
+	n_primes_jump_after(iter,min);
+	for(ulong i = 0; (p=n_primes_next(iter)) <= max; i++)
+	{
+		ulong roots[16]; ulong nroot;
+		rootsMod(f,p,roots,nroot);
+		for(ulong j = 0; j < nroot; j++)
+		{
+			QB[nQB] = MyPair(roots[j],p);
+			nQB++;
+		}
+	}
+	assert(nQB <= MaxPrimeBufSize);
+	n_primes_clear(iter);
+}
+
+/**
+ *	Sieving: Lattice sieve in the rational part.
+ */
 void latticeRationalSieve(HashTable &pairs, const ulong *RB, const double *lRB,
 	ulong iRB, ulong nRB, MyPair u, MyPair v, slong C, slong D, const fmpz_t m)
 {
-	HashTable result(800*C);
+	HashTable result(300*C*log(D));
 	slong im = fmpz_get_si(m);
-	MyPair s,t;
+	time_t start = clock();
+	/* Accumulate log(p) for each p < q in the base. */
 	for(ulong j = 0; j < iRB; j++)
 	{
 		slong p = RB[j];
+		double lp = lRB[j];
 		slong h = (u.r+u.p*im)%p;
 		slong k = (v.r+v.p*im)%p;
+		/* For each p, find all the (c,d) pairs such that
+		 * (c*h+d*k) mod p == 0 */
 		if(k)
 		{
 			fmpz_t ki,fk,fp;
@@ -344,18 +723,28 @@ void latticeRationalSieve(HashTable &pairs, const ulong *RB, const double *lRB,
 				slong ch = c*h;
 				slong kinv = fmpz_get_si(ki);
 				slong d = -ch * kinv;
+#ifdef DEBUG
 				assert((c*h+d*k)%p==0);
+#endif
 				if(d > 1) d -= ((d-1)/p)*p;
 				if(d < 1) d += ((-d)/p+1)*p;
+#ifdef DEBUG
 				assert(d >= 1);
+#endif
+				slong a = c*u.r+d*v.r;
+				slong b = c*u.p+d*v.p;
+				slong pvr = p*v.r;
+				slong pvp = p*v.p;
 				for(;d <= D; d+=p)
 				{
-					slong a = c*u.r+d*v.r;
-					slong b = c*u.p+d*v.p;
+#ifdef DEBUG
 					assert((a+b*im)%p == 0);
+#endif
 					if(b==0) continue;
 					if(b < 0){a=-a;b=-b;}
-					result.add(MyPair(a,b),lRB[j]);
+					result.add(MyPair(a,b),lp);
+					a += pvr;
+					b += pvp;
 				}
 			}
 			fmpz_clear(ki);
@@ -367,31 +756,45 @@ void latticeRationalSieve(HashTable &pairs, const ulong *RB, const double *lRB,
 			slong c = -(C/p)*p;
 			for(;c <= C; c+=p)
 			{
-				for(slong d = 1; d <= D; d++)
+				slong d = 1;
+				slong a = c*u.r+d*v.r;
+				slong b = c*u.p+d*v.p;
+				for(; d <= D; d++)
 				{
-					slong a = c*u.r+d*v.r;
-					slong b = c*u.p+d*v.p;
+#ifdef DEBUG
 					assert((a+b*im)%p == 0);
+#endif
 					if(b==0) continue;
 					if(b < 0){a=-a;b=-b;}
-					result.add(MyPair(a,b),lRB[j]);
+					result.add(MyPair(a,b),lp);
+					a += v.r;
+					b += v.p;
 				}
 			}
 		}
 		else
 		{
 			for(slong c = -C; c <= C; c++)
-				for(slong d = 1; d <= D; d++)
+			{
+				slong d = 1;
+				slong a = c*u.r+d*v.r;
+				slong b = c*u.p+d*v.p;
+				for(; d <= D; d++)
 				{
-					slong a = c*u.r+d*v.r;
-					slong b = c*u.p+d*v.p;
+#ifdef DEBUG
 					assert((a+b*im)%p == 0);
+#endif
 					if(b==0) continue;
 					if(b < 0){a=-a;b=-b;}
-					result.add(MyPair(a,b),lRB[j]);
+					result.add(MyPair(a,b),lp);
+					a += v.r;
+					b += v.p;
 				}
+			}
 		}
 	}
+	//cout << "Rat accum: " << clock()-start << endl;
+	start = clock();
 	for(list<MyPair>::iterator iter = result._list.begin(); iter != result._list.end(); iter++)
 	{
 		fmpz_t bm,fa,fb,abm,gcd;
@@ -411,9 +814,9 @@ void latticeRationalSieve(HashTable &pairs, const ulong *RB, const double *lRB,
 		if(!fmpz_is_one(gcd)) continue;
 		fmpz_abs(abm,abm);
 		double labm = fmpz_dlog(abm);
-		if(result.get(*iter) - labm < -10.0) continue;
+		if(result.get(*iter) - labm < -5*log(D)) continue;
 		if(!isSmooth(abm,RB,nRB)) continue;
-		pairs.set(*iter,0.0);
+		pairs.insert(*iter);
 
 		fmpz_clear(bm);
 		fmpz_clear(fa);
@@ -421,16 +824,21 @@ void latticeRationalSieve(HashTable &pairs, const ulong *RB, const double *lRB,
 		fmpz_clear(abm);
 		fmpz_clear(gcd);
 	}
+	//cout << "Rat check: " << clock()-start << endl;
 }
 
+/**
+ *	Sieving: Lattice sieve in the algebraic part.
+ */
 void latticeAlgebraicSieve(HashTable &abPairs, ulong &loc, slong num, HashTable &pairs, const fmpz_poly_t f,
 	const MyPair *AB, const double *lAB, ulong iAB, ulong nAB, MyPair u, MyPair v, slong C, slong D)
 {
-	HashTable result(800*C);
-	MyPair s,t;
+	HashTable result(300*C*log(D));
+	time_t start = clock();
 	for(ulong j = 0; j < nAB; j++)
 	{
 		slong p = AB[j].p;
+		double lp = lAB[j];
 		slong r = AB[j].r;
 		slong h = (u.r+u.p*r)%p;
 		slong k = (v.r+v.p*r)%p;
@@ -446,18 +854,29 @@ void latticeAlgebraicSieve(HashTable &abPairs, ulong &loc, slong num, HashTable 
 				slong ch = c*h;
 				slong kinv = fmpz_get_si(ki);
 				slong d = -ch * kinv;
+#ifdef DEBUG
 				assert((c*h+d*k)%p==0);
+#endif
 				if(d > 1) d -= ((d-1)/p)*p;
 				if(d < 1) d += ((-d)/p+1)*p;
+#ifdef DEBUG
 				assert(d >= 1);
+#endif
+				slong a = c*u.r+d*v.r;
+				slong b = c*u.p+d*v.p;
+				slong pvr = p*v.r;
+				slong pvp = p*v.p;
 				for(;d <= D; d+=p)
 				{
-					slong a = c*u.r+d*v.r;
-					slong b = c*u.p+d*v.p;
+#ifdef DEBUG
 					assert((a+b*r)%p == 0);
+#endif
 					if(b==0) continue;
 					if(b < 0){a=-a;b=-b;}
-					result.add(MyPair(a,b),lAB[j]);
+					if(!pairs.find(MyPair(a,b))) continue;
+					result.add(MyPair(a,b),lp);
+					a += pvr;
+					b += pvp;
 				}
 			}
 			fmpz_clear(ki);
@@ -469,32 +888,47 @@ void latticeAlgebraicSieve(HashTable &abPairs, ulong &loc, slong num, HashTable 
 			slong c = -(C/p)*p;
 			for(;c <= C; c+=p)
 			{
-				for(slong d = 1; d <= D; d++)
+				slong d = 1;
+				slong a = c*u.r+d*v.r;
+				slong b = c*u.p+d*v.p;
+				for(; d <= D; d++)
 				{
-					slong a = c*u.r+d*v.r;
-					slong b = c*u.p+d*v.p;
+#ifdef DEBUG
 					assert((a+b*r)%p == 0);
+#endif
 					if(b==0) continue;
 					if(b < 0){a=-a;b=-b;}
-					result.add(MyPair(a,b),lAB[j]);
+					if(!pairs.find(MyPair(a,b))) continue;
+					result.add(MyPair(a,b),lp);
+					a += v.r;
+					b += v.p;
 				}
 			}
 		}
 		else
 		{
 			for(slong c = -C; c <= C; c++)
-				for(slong d = 1; d <= D; d++)
+			{
+				slong d = 1;
+				slong a = c*u.r+d*v.r;
+				slong b = c*u.p+d*v.p;
+				for(; d <= D; d++)
 				{
-					slong a = c*u.r+d*v.r;
-					slong b = c*u.p+d*v.p;
+#ifdef DEBUG
 					assert((a+b*r)%p == 0);
+#endif
 					if(b==0) continue;
 					if(b < 0){a=-a;b=-b;}
 					if(!pairs.find(MyPair(a,b))) continue;
-					result.add(MyPair(a,b),lAB[j]);
+					result.add(MyPair(a,b),lp);
+					a += v.r;
+					b += v.p;
 				}
+			}
 		}
 	}
+	// cout << "Alg accum: " << clock() - start << endl;
+	start = clock();
 	for(list<MyPair>::iterator iter = result._list.begin(); iter != result._list.end(); iter++)
 	{
 		fmpz_t fa,fb,nm,gcd;
@@ -513,12 +947,12 @@ void latticeAlgebraicSieve(HashTable &abPairs, ulong &loc, slong num, HashTable 
 		fmpz_abs(nm,nm);
 
 		double lnm = fmpz_dlog(nm);
-		if(result.get(*iter) - lnm < -10.0) continue;
+		if(result.get(*iter) - lnm < -5*log(D)) continue;
 		if(!isSmooth(nm,AB,nAB)) continue;
 		if(pairs.find(*iter))
 		{
-			abPairs.set(*iter,0.0);
-			loc = abPairs._list.size();
+			abPairs.insert(*iter);
+			loc = abPairs.size();
 			if(loc >= num) break;
 		}
 
@@ -527,7 +961,10 @@ void latticeAlgebraicSieve(HashTable &abPairs, ulong &loc, slong num, HashTable 
 		fmpz_clear(nm);
 		fmpz_clear(gcd);
 	}
+	// cout << "Alg check: " << clock() - start << endl;
 }
+
+/* Traditional method: used if lattice sieve failed to find enough number of pairs. */
 /*
  * sieve_array: The array to accumulate
  * RB: Factor base
@@ -621,79 +1058,21 @@ void algebraicSieve(double *nf_sieve_array, const fmpz_poly_t f, const MyPair *A
 	fmpz_clear(Abrmp);
 }
 
-void sieve(fmpz_poly_t f, const ulong *RB, const double *lRB, ulong nRB,
-		   const MyPair *AB, const double *lAB, ulong nAB, MyPair *abPairs, ulong num, slong N, fmpz_t m)
-{
-	fmpz_t bm,fa,fb,nm,abm,gcd;
-	fmpz_init(bm);
-	fmpz_init(fa);
-	fmpz_init(fb);
-	fmpz_init(nm);
-	fmpz_init(abm);
-	fmpz_init(gcd);
-
-	ulong loc = 0;
-	ulong I = 2*N+1;
-	double *r_sieve_array = new double[I];
-	double *a_sieve_array = new double[I];
-	for(ulong b = 1; b < MaxB; b++)
-	{
-		fmpz_set_ui(fb,b);
-		fmpz_mul_ui(bm,m,b);
-		rationalSieve(r_sieve_array, 2*N+1, RB, lRB, nRB, -N, bm);
-		algebraicSieve(a_sieve_array, f, AB, lAB, nAB, 2*N+1, -N, b);
-		for(ulong i = 0; i < I; i++)
-		{
-			slong a = i - N;
-			fmpz_set_si(fa,a);
-			fmpz_add(abm,bm,fa);
-			fmpz_gcd(gcd,fa,fb);
-			norm(nm,f,fa,fb);
-			fmpz_abs(abm,abm);
-			fmpz_abs(nm,nm);
-			if(r_sieve_array[i] >= -5.0 && a_sieve_array[i] >= -5.0 && fmpz_is_one(gcd))
-			{
-				if(randombool(0.9))
-				{
-					if(isSmooth(abm,RB,nRB) && isSmooth(nm,AB,nAB))
-					{
-						abPairs[loc] = MyPair(a,b);
-						loc++;
-						if(loc >= num) break;
-#ifdef PRINT_PROCESS
-						cerr << "\r" << loc*100/num << "%"; cerr.flush();
-#endif
-					}
-				}
-			}
-		}
-		if(loc >= num) break;
-	}
-	assert(loc == num);
-	num = loc;
-	delete []r_sieve_array;
-	delete []a_sieve_array;
-
-	fmpz_clear(bm);
-	fmpz_clear(fa);
-	fmpz_clear(fb);
-	fmpz_clear(nm);
-	fmpz_clear(abm);
-	fmpz_clear(gcd);
-}
-
+/**
+ *	Sieving: The main procedure.
+ */
 void latticeSieve(const fmpz_poly_t f, const ulong *RB, const double *lRB, ulong nRB,
 		   const MyPair *AB, const double *lAB, ulong nAB, MyPair *abPairs, ulong num, slong A, slong B, fmpz_t m)
 {
 	ulong loc = 0;
+	/* Use the HashTable to store the found (a,b) pairs to prevent repeat. */
 	HashTable abpairs(num);
-
+	/* Loop for each special-q. */
 	for(ulong i = nRB/2; i < nRB; i++)
 	{
 		HashTable pairs(A*20);
 
 		slong q = RB[i];
-		double lq = log(q);
 		slong im = fmpz_get_si(m);
 		MyPair u(q,0), v(im,-1);
 		gaussianLatticeReduce(u,v);
@@ -703,17 +1082,22 @@ void latticeSieve(const fmpz_poly_t f, const ulong *RB, const double *lRB, ulong
 		slong D = D2/2;
 		latticeRationalSieve(pairs, RB, lRB, i, nRB, u, v, C, D, m);
 		latticeAlgebraicSieve(abpairs, loc, num, pairs, f, AB, lAB, i, nAB, u, v, C, D);
-		
-		if(loc >= num) break;
-#ifdef PRINT_PROCESS
+
+#if(PRINT_PROCESS && PRINT_SIEVE_PROCESS)
 		cerr << "\r" << loc << "/" << num << "       ";
 		cerr << i << "/" << nRB;
 		cerr << "                       "; cerr.flush();
 #endif
+#if(PRINT_PROCESS && SLOW_PRINT_SIEVE_PROCESS)
+		cerr << loc << "/" << num << "       ";
+		cerr << i << "/" << nRB;
+		cerr << endl;
+#endif
+		if(loc >= num) break;
 	}
 	if(loc < num) /*If loc < num, then continue sieving with traditional method*/
 	{
-		A *= 2;
+		A *= 2; /*Double the size of the sieving region.*/
 		fmpz_t bm,fa,fb,nm,abm,gcd;
 		fmpz_init(bm);
 		fmpz_init(fa);
@@ -746,15 +1130,18 @@ void latticeSieve(const fmpz_poly_t f, const ulong *RB, const double *lRB, ulong
 					if(abpairs.find(MyPair(a,b))) continue;
 					if(isSmooth(abm,RB,nRB) && isSmooth(nm,AB,nAB))
 					{
-						abpairs.set(MyPair(a,b),0.0);
-						loc = abpairs._list.size();
+						abpairs.insert(MyPair(a,b));
+						loc = abpairs.size();
 						if(loc >= num) break;
 					}
 				}
-#ifdef PRINT_PROCESS
+#if(PRINT_PROCESS && PRINT_SIEVE_PROCESS)
 				cerr << "\r" << loc << "/" << num; cerr.flush();
 #endif
 			}
+#if(PRINT_PROCESS && SLOW_PRINT_SIEVE_PROCESS)
+			cerr << loc << "/" << num << endl;
+#endif
 			if(loc >= num) break;
 		}
 		delete []r_sieve_array;
@@ -776,63 +1163,99 @@ void latticeSieve(const fmpz_poly_t f, const ulong *RB, const double *lRB, ulong
 	num = loc;
 }
 
-void rootsMod(const fmpz_poly_t f, ulong p, ulong *roots, ulong &nroot)
+/**
+ *	Form the matrix from the sieved (a,b) pairs
+ *
+ *	Each column is divided into four parts (sign, rational, algebraic, quadratic)
+ *
+ *	1. sign. Set to 0 if a+bm >= 0, to 1 otherwise.
+ *	2. rational. (e1 mod 2, e2 mod 2, ... , eN mod 2), N is size of rational base.
+ *		ei is power of i'th prime in a+bm.
+ *	3. algebraic. (f1 mod 2, f2 mod 2, ... , fN mod 2), N is size of algebraic base.
+ *		fi is power of i'th pair (p,r) in N(a,b).
+ *	4. quadratic. (h1, h2, ... , hN), N is size of quadratic base.
+ *		hi is 1 if legendre symbol(a+bs,q) == 0, and 0 otherwise.
+ */
+void formMatrix(nmod_mat_t mat, ulong I, ulong J, const fmpz_t m, const fmpz_poly_t f, const MyPair *abPairs,
+				const ulong *RB, ulong nRB, const MyPair* AB, ulong nAB, const MyPair* QB, ulong nQB)
 {
-	assert(p > 1);
-	ulong d = fmpz_poly_degree(f);
-	fmpz_t c;
-	nmod_poly_factor_t fac;
-	nmod_poly_t g;
-	fmpz_init(c);
-	nmod_poly_factor_init(fac);
-	nmod_poly_factor_fit_length(fac,d);
-	nmod_poly_init(g,p);
-	for(int i = 0; i <= d; i++)
+	fmpz_t fa,fb,A,r,s,bm;
+	fmpz_init(fa);
+	fmpz_init(fb);
+	fmpz_init(A);
+	fmpz_init(r);
+	fmpz_init(s);
+	fmpz_init(bm);
+	nmod_mat_init(mat,I,J,2);
+	for(ulong j = 0; j < J; j++)
 	{
-		fmpz_poly_get_coeff_fmpz(c,f,i);
-		nmod_poly_set_coeff_ui(g,i,fmpz_mod_ui(c,c,p));
-	}
-	nmod_poly_factor(fac,g);
-
-	ulong n = fac->num;
-	nroot = 0;
-	for(long i = 0; i < n; i++)
-	{
-		nmod_poly_struct* h = fac->p+i;
-		if(nmod_poly_degree(h) == 1)
+		slong a = abPairs[j].r;
+		slong b = abPairs[j].p;
+		fmpz_set_si(fa,a);
+		fmpz_set_ui(fb,b);
+		fmpz_mul_ui(bm,m,b);
+		fmpz_add(A,bm,fa);
+		*nmod_mat_entry_ptr(mat,0,j) = fmpz_cmp_si(A,0) >= 0? 0: 1;
+		for(ulong i = 0; i < nRB; i++)
 		{
-			ulong a = nmod_poly_get_coeff_ui(h,0);
-			roots[nroot] = (p-a)%p;
-			nroot++;
+			ulong p = RB[i];
+			ulong e = 0;
+			while(!fmpz_is_zero(A) && fmpz_divisible_si(A,p))
+			{
+				fmpz_fdiv_q_ui(A,A,p);
+				e++;
+			}
+			*nmod_mat_entry_ptr(mat,i+1,j) = e % 2;
+		}
+#ifdef DEBUG
+		assert(fmpz_is_pm1(A));
+#endif
+		norm(A,f,fa,fb);
+		for(ulong i = 0; i < nAB; i++)
+		{
+			slong p = AB[i].p;
+			slong r = AB[i].r;
+			ulong e = 0;
+			while(!fmpz_is_zero(A) && fmpz_divisible_si(A,p) && (a+b*r)%p == 0)
+			{
+				fmpz_fdiv_q_ui(A,A,p);
+				e++;
+			}
+			*nmod_mat_entry_ptr(mat,i+1+nRB,j) = e % 2;
+		}
+#ifdef DEBUG
+		assert(fmpz_is_pm1(A));
+#endif
+		for(ulong i = 0; i < nQB; i++)
+		{
+			slong s = QB[i].r;
+			slong q = QB[i].p;
+			int l = Leg(a+b*s,q);
+			if((a+b*s)%q==0)
+			{
+				cout << q << " divides " << a+b*s << endl;
+				cout << a << ' ' << b << endl;
+				norm(A,f,fa,fb);
+				fmpz_print(A); printf("\n");
+			}
+#ifdef DEBUG
+			assert((a+b*s)%q != 0);
+#endif
+			*nmod_mat_entry_ptr(mat,i+1+nRB+nAB,j) = (l == 1? 0: 1);
 		}
 	}
-	fmpz_clear(c);
-	nmod_poly_clear(g);
-	nmod_poly_factor_clear(fac);
+	fmpz_clear(fa);
+	fmpz_clear(fb);
+	fmpz_clear(A);
+	fmpz_clear(r);
+	fmpz_clear(s);
+	fmpz_clear(bm);
 }
 
-int Leg(const fmpz_t a, const fmpz_t p) //Legender symbol
-{
-	fmpz_t c;
-	fmpz_init(c);
-	fmpz_mod(c,a,p);
-	int l = fmpz_jacobi(c,p);
-	fmpz_clear(c);
-	return l;
-}
 
-int Leg(slong a, ulong p) //Legender symbol
-{
-	fmpz_t c,q;
-	fmpz_init_set_ui(q,p);
-	fmpz_init_set_si(c,a);
-	fmpz_mod(c,c,q);
-	int l = fmpz_jacobi(c,q);
-	fmpz_clear(c);
-	fmpz_clear(q);
-	return l;
-}
-
+/**
+ *	Solving linear system procedure: get a nonzero 0,1 solution of AX=O
+ */
 void solveMatrix(nmod_mat_t mat, ulong I, ulong J, int *vec)
 {
 	nmod_mat_rref(mat);
@@ -849,67 +1272,91 @@ void solveMatrix(nmod_mat_t mat, ulong I, ulong J, int *vec)
 		vec[i] = nmod_mat_entry(mat,i,minI);
 }
 
-//void nmod_poly_powmod_ui_binexp(res,poly,e,f)
-
-bool legal(const fmpz_poly_t fx, ulong p)
+/**
+ *	Compute the square root of Prod(a+bm) for all the pairs (a,b) in an array
+ */
+void sqrtProductOfPairs(fmpz_t s, const MyPair *pairs, ulong num, const fmpz_t m)
 {
-	ulong d = fmpz_poly_degree(fx);
-	fmpz_t c;
-	nmod_poly_t f;
-	fmpz_init(c);
-	nmod_poly_init(f,p);
-	for(slong i = 0; i <= d; i++)
+	fmpz_t abm,bm,fa,r,e;
+	fmpz_init(abm);
+	fmpz_init(bm);
+	fmpz_init(fa);
+	fmpz_init(r);
+	fmpz_init(e);
+	fmpz_one(s);
+	for(long i = 0; i < num; i++)
 	{
-		fmpz_poly_get_coeff_fmpz(c,fx,i);
-		nmod_poly_set_coeff_ui(f,i,fmpz_mod_ui(c,c,p));
+		slong a = pairs[i].r;
+		ulong b = pairs[i].p;
+		fmpz_set_si(fa,a);
+		fmpz_mul_ui(bm,m,b);
+		fmpz_add(abm,bm,fa);
+		fmpz_mul(s,s,abm);
 	}
-	int r = nmod_poly_is_irreducible(f);
-	fmpz_clear(c);
-	nmod_poly_clear(f);
-	return r;
+	fmpz_sqrtrem(r,e,s);
+	/*Check that s is indeed a square number.*/
+	assert(fmpz_is_zero(e));
+	fmpz_set(s,r);
+
+	fmpz_clear(abm);
+	fmpz_clear(bm);
+	fmpz_clear(fa);
+	fmpz_clear(r);
+	fmpz_clear(e);
 }
 
-void selectNonResidual(nmod_poly_t px, const nmod_poly_t fx, ulong p, const fmpz_t e, ulong d)
+/**
+ *	Compute product of polynomials (a+bx) modular f for all the pairs (a,b) in the array.
+ */
+void productOfPairs(fmpz_poly_t sx, const MyPair *abPairs, ulong num, const fmpz_poly_t f, fmpz_t Nm)
 {
-	mpz_t ee;
-	mpz_init(ee);
-	fmpz_get_mpz(ee,e);
-	flint_rand_t frt;
-	flint_randinit(frt);
-	nmod_poly_t mp;
-	nmod_poly_init(mp,p);
-	while(true)
+	fmpz_t r,e,nm,fa,fb;
+	fmpz_poly_t gx,q;
+	fmpz_init(r);
+	fmpz_init(e);
+	fmpz_init(nm);
+	fmpz_init(fa);
+	fmpz_init(fb);
+	fmpz_poly_init(gx);
+	fmpz_poly_init(q);
+	fmpz_poly_one(sx);
+	fmpz_one(Nm);
+
+	for(ulong i = 0; i < num; i++)
 	{
-		nmod_poly_randtest_monic(px,frt,d);
-		nmod_poly_powmod_mpz_binexp(mp,px,ee,fx);
-		assert(nmod_poly_degree(mp)==0);
-		if(nmod_poly_get_coeff_ui(mp,0) == p-1) break;
+		slong a = abPairs[i].r;
+		ulong b = abPairs[i].p;
+		fmpz_set_si(fa,a);
+		fmpz_set_ui(fb,b);
+		fmpz_poly_set_coeff_si(gx,0,a);
+		fmpz_poly_set_coeff_si(gx,1,b);
+		fmpz_poly_mul(sx,sx,gx);
+		fmpz_poly_divrem(q,sx,sx,f);
+		norm(nm,f,fa,fb);
+		fmpz_mul(Nm,Nm,nm);
 	}
-	flint_randclear(frt);
-	nmod_poly_clear(mp);
-	mpz_clear(ee);
+	fmpz_sqrtrem(r,e,Nm);
+	/*Check that Nm is indeed a square number.*/
+	assert(fmpz_is_zero(e));
+	fmpz_set(Nm,r);
+
+	fmpz_clear(r);
+	fmpz_clear(e);
+	fmpz_clear(nm);
+	fmpz_clear(fa);
+	fmpz_clear(fb);
+	fmpz_poly_clear(gx);
+	fmpz_poly_clear(q);
 }
 
-ulong computeOrder(const nmod_poly_t px, const nmod_poly_t fx)
-{
-	mp_limb_t p = nmod_poly_modulus(px);
-	nmod_poly_t g;
-	nmod_poly_init(g,p);
-	nmod_poly_set(g,px);
-	ulong i;
-	for(i = 0; i < 10000; i++)
-	{
-		if(nmod_poly_is_one(g)) break;
-		nmod_poly_powmod_ui_binexp(g,g,2,fx);
-	}
-	nmod_poly_clear(g);
-	if(i >= 10000) return -1;
-	return i;
-}
-
+/**
+ *	Compute the square root of a polynomial sx modular polynomial f in Fp[x].
+ */
 ulong computeSquareRoot(const fmpz_poly_t sx, const fmpz_poly_t f, slong p, const fmpz_t m, const fmpz_t Nm)
 {
+#ifdef DEBUG
 	assert(p > 1);
+#endif
 
 	slong d = fmpz_poly_degree(f);
 	fmpz_t c,fp,q,q1,q2,s,s1,Nmp;
@@ -957,7 +1404,9 @@ ulong computeSquareRoot(const fmpz_poly_t sx, const fmpz_poly_t f, slong p, cons
 	fmpz_get_mpz(eq2,q2);
 	/*Check Sx is quadratic residual*/
 	nmod_poly_powmod_mpz_binexp(Sxp,Sx,eq1,Fx);
+#ifdef DEBUG
 	assert(nmod_poly_is_one(Sxp));
+#endif
 	/********************************/
 	slong r = 1;
 	fmpz_set(s,q1);
@@ -1039,263 +1488,14 @@ ulong computeSquareRoot(const fmpz_poly_t sx, const fmpz_poly_t f, slong p, cons
 	return M;
 }
 
-double doublesum(double array[], ulong l, ulong r)
-{
-	if(r-l == 0) return 0;
-	if(r-l == 1) return array[l];
-	return doublesum(array,l,(l+r)/2) + doublesum(array,(l+r)/2,r);
-}
+/**
+ *	We use Chinese remainder theorem to compute x = phi(beta), first we need to find
+ *	a set of primes p, such that their products is larger than x.
+ */
 
-ulong boundForSmoothness(ulong d, const fmpz_t n)
-{
-	assert(d > 0);
-	double dlogd = d*log(d);
-	assert(n > 0);
-	double temp = 1.0/d * fmpz_dlog(n);
-	assert(temp > 0);
-	double e = dlogd + sqrt(dlogd*dlogd + 4*temp*log(temp));
-	return 0.5*exp(0.5*e);
-}
-
-void prepareRationalBase(ulong *RB, double *lRB, ulong &nRB, ulong bound)
-{
-	ulong p;
-	n_primes_t iter;
-	n_primes_init(iter);
-	for(nRB = 0; (p = n_primes_next(iter)) <= bound; nRB++)
-	{
-		RB[nRB] = p;
-		lRB[nRB] = log(RB[nRB]);
-	}
-	//slong r = rand() % (nRB/10);
-	//nRB -= r;
-	assert(nRB <= MaxPrimeBufSize);
-	n_primes_clear(iter);
-}
-
-void prepareAlgebraicBase(MyPair *AB, double *lAB, ulong &nAB, ulong size, fmpz_poly_t f)
-{
-	n_primes_t iter;
-	n_primes_init(iter);
-	for(ulong i = 0; i < size; i++)
-	{
-		ulong p = n_primes_next(iter);
-		ulong roots[16]; ulong nroot;
-		rootsMod(f,p,roots,nroot);
-		for(ulong j = 0; j < nroot; j++)
-		{
-			AB[nAB] = MyPair(roots[j],p);
-			nAB++;
-		}
-	}
-	n_primes_clear(iter);
-	assert(nAB <= MaxPrimeBufSize);
-	for(ulong i = 0; i < nAB; i++)
-		lAB[i] = log(AB[i].p);
-}
-
-void prepareQuadraticBase(MyPair *QB, ulong &nQB, ulong min, ulong max, fmpz_poly_t &f)
-{
-	ulong p;
-	n_primes_t iter;
-	n_primes_init(iter);
-	n_primes_jump_after(iter,min);
-	for(ulong i = 0; (p=n_primes_next(iter)) <= max; i++)
-	{
-		ulong roots[16]; ulong nroot;
-		rootsMod(f,p,roots,nroot);
-		for(ulong j = 0; j < nroot; j++)
-		{
-			QB[nQB] = MyPair(roots[j],p);
-			nQB++;
-		}
-	}
-	assert(nQB <= MaxPrimeBufSize);
-	n_primes_clear(iter);
-}
-
-void printListOfNumbers(slong *A, ulong s, ulong N)
-{
-	for(ulong i = 0; i < s; i++)
-	{
-		if(N && i && i % N == 0) cout << endl;
-		cout << setw(10) << A[i];
-	}
-	cout << endl;
-}
-
-void printListOfNumbers(ulong *A, ulong s, ulong N)
-{
-	for(ulong i = 0; i < s; i++)
-	{
-		if(N && i && i % N == 0) cout << endl;
-		cout << setw(10) << A[i];
-	}
-	cout << endl;
-}
-
-void printListOfPairs(MyPair *A, ulong s, ulong N)
-{
-	for(ulong i = 0; i < s; i++)
-	{
-		if(N && i && i % N == 0) cout << endl;
-		cout << "(" << A[i].r << "," << A[i].p << ") ";
-	}
-	cout << endl;
-}
-
-void formMatrix(nmod_mat_t mat, ulong I, ulong J, const fmpz_t m, const fmpz_poly_t f, const MyPair *abPairs,
-				const ulong *RB, ulong nRB, const MyPair* AB, ulong nAB, const MyPair* QB, ulong nQB)
-{
-	fmpz_t fa,fb,A,r,s,bm;
-	fmpz_init(fa);
-	fmpz_init(fb);
-	fmpz_init(A);
-	fmpz_init(r);
-	fmpz_init(s);
-	fmpz_init(bm);
-	nmod_mat_init(mat,I,J,2);
-	for(ulong j = 0; j < J; j++)
-	{
-		slong a = abPairs[j].r;
-		slong b = abPairs[j].p;
-		fmpz_set_si(fa,a);
-		fmpz_set_ui(fb,b);
-		fmpz_mul_ui(bm,m,b);
-		fmpz_add(A,bm,fa);
-		*nmod_mat_entry_ptr(mat,0,j) = fmpz_cmp_si(A,0) >= 0? 0: 1;
-		for(ulong i = 0; i < nRB; i++)
-		{
-			ulong p = RB[i];
-			ulong e = 0;
-			while(!fmpz_is_zero(A) && fmpz_divisible_si(A,p))
-			{
-				fmpz_fdiv_q_ui(A,A,p);
-				e++;
-			}
-			*nmod_mat_entry_ptr(mat,i+1,j) = e % 2;
-		}
-		assert(fmpz_is_pm1(A));
-		norm(A,f,fa,fb);
-		for(ulong i = 0; i < nAB; i++)
-		{
-			slong p = AB[i].p;
-			slong r = AB[i].r;
-			ulong e = 0;
-			while(!fmpz_is_zero(A) && fmpz_divisible_si(A,p) && (a+b*r)%p == 0)
-			{
-				fmpz_fdiv_q_ui(A,A,p);
-				e++;
-			}
-			*nmod_mat_entry_ptr(mat,i+1+nRB,j) = e % 2;
-		}
-		assert(fmpz_is_pm1(A));
-		for(ulong i = 0; i < nQB; i++)
-		{
-			slong s = QB[i].r;
-			slong q = QB[i].p;
-			int l = Leg(a+b*s,q);
-			if((a+b*s)%q==0)
-			{
-				cout << q << " divides " << a+b*s << endl;
-				cout << a << ' ' << b << endl;
-				norm(A,f,fa,fb);
-				fmpz_print(A); printf("\n");
-			}
-			assert((a+b*s)%q != 0);
-			*nmod_mat_entry_ptr(mat,i+1+nRB+nAB,j) = (l == 1? 0: 1);
-		}
-	}
-	fmpz_clear(fa);
-	fmpz_clear(fb);
-	fmpz_clear(A);
-	fmpz_clear(r);
-	fmpz_clear(s);
-	fmpz_clear(bm);
-}
-
-void select(MyPair *pairs, int *vec, ulong I, ulong &n)
-{
-	ulong loc = 0;
-	for(ulong i = 0; i < I; i++)
-	{
-		if(vec[i]) pairs[loc++] = pairs[i];
-	}
-	n = loc;
-	assert(n > 0);
-}
-
-void sqrtProductOfPairs(fmpz_t s, const MyPair *pairs, ulong num, const fmpz_t m)
-{
-	fmpz_t abm,bm,fa,r,e;
-	fmpz_init(abm);
-	fmpz_init(bm);
-	fmpz_init(fa);
-	fmpz_init(r);
-	fmpz_init(e);
-	fmpz_one(s);
-	for(long i = 0; i < num; i++)
-	{
-		slong a = pairs[i].r;
-		ulong b = pairs[i].p;
-		fmpz_set_si(fa,a);
-		fmpz_mul_ui(bm,m,b);
-		fmpz_add(abm,bm,fa);
-		fmpz_mul(s,s,abm);
-	}
-	fmpz_sqrtrem(r,e,s);
-	/*Check that s is indeed a square number.*/
-	assert(fmpz_is_zero(e));
-	fmpz_set(s,r);
-
-	fmpz_clear(abm);
-	fmpz_clear(bm);
-	fmpz_clear(fa);
-	fmpz_clear(r);
-	fmpz_clear(e);
-}
-
-void productOfPairs(fmpz_poly_t sx, const MyPair *abPairs, ulong num, const fmpz_poly_t f, fmpz_t Nm)
-{
-	fmpz_t r,e,nm,fa,fb;
-	fmpz_poly_t gx,q;
-	fmpz_init(r);
-	fmpz_init(e);
-	fmpz_init(nm);
-	fmpz_init(fa);
-	fmpz_init(fb);
-	fmpz_poly_init(gx);
-	fmpz_poly_init(q);
-	fmpz_poly_one(sx);
-	fmpz_one(Nm);
-
-	for(ulong i = 0; i < num; i++)
-	{
-		slong a = abPairs[i].r;
-		ulong b = abPairs[i].p;
-		fmpz_set_si(fa,a);
-		fmpz_set_ui(fb,b);
-		fmpz_poly_set_coeff_si(gx,0,a);
-		fmpz_poly_set_coeff_si(gx,1,b);
-		fmpz_poly_mul(sx,sx,gx);
-		fmpz_poly_divrem(q,sx,sx,f);
-		norm(nm,f,fa,fb);
-		fmpz_mul(Nm,Nm,nm);
-	}
-	fmpz_sqrtrem(r,e,Nm);
-	/*Check that Nm is indeed a square number.*/
-	assert(fmpz_is_zero(e));
-	fmpz_set(Nm,r);
-
-	fmpz_clear(r);
-	fmpz_clear(e);
-	fmpz_clear(nm);
-	fmpz_clear(fa);
-	fmpz_clear(fb);
-	fmpz_poly_clear(gx);
-	fmpz_poly_clear(q);
-}
-
+/**
+ *	First estimate an upperbound for x.
+ */
 void estimateUpperBoundForX(fmpz_t res, const fmpz_poly_t delta, const fmpz_t m, ulong d)
 {
 	fmpz_zero(res);
@@ -1315,6 +1515,10 @@ void estimateUpperBoundForX(fmpz_t res, const fmpz_poly_t delta, const fmpz_t m,
 	fmpz_clear(c);
 }
 
+/**
+ *	Then select the primes by repeatedly dividing the upperbound by larger and
+ *	larger primes.
+ */
 bool selectPrimesCoverX(ulong *primes, ulong &nprimes, fmpz_t upperBound, ulong d, const fmpz_poly_t f)
 {
 	n_primes_t iter;
@@ -1326,18 +1530,21 @@ bool selectPrimesCoverX(ulong *primes, ulong &nprimes, fmpz_t upperBound, ulong 
 		ulong p = n_primes_next(iter);
 		assert(p <= MaxPrime);
 		assert(nprimes < MaxSelectedPrimes);
-		if(legal(f,p))
+		if(irreducibleMod(f,p))
 		{
 			primes[nprimes++] = p;
 			fmpz_cdiv_q_ui(upperBound,upperBound,p);
-			//cout << p << endl;
-			//cout << upperBound << endl;
 		}
 	}
 	n_primes_clear(iter);
 	return fmpz_cmp_ui(upperBound,1)<=0;
 }
 
+/**
+ *	For each selected prime p, compute square root of polynomial delta mod f mod p,
+ *	then substitute m in the result polynomial, we will get a square root of
+ *	phi(beta^2) mod p, which are the x mod p[i]'s used in the CRT.
+ */
 void computeSquareRoots(ulong *XmodPi, ulong *primes, ulong nprimes, fmpz_poly_t delta,
 						const fmpz_poly_t f, const fmpz_t m, const fmpz_t Nm)
 {
@@ -1348,6 +1555,10 @@ void computeSquareRoots(ulong *XmodPi, ulong *primes, ulong nprimes, fmpz_poly_t
 	}
 }
 
+/**
+ *	A step in the CRT: compute the inverse of P[i] modular p[i], where P[i] is P/p[i],
+ *	and P is the product of all the p[i]'s.
+ */
 void computePinvs(ulong *Pinv, const ulong *primes, ulong nprimes)
 {
 	fmpz_t fp,fq,f;
@@ -1390,22 +1601,18 @@ void computePinvsModn(fmpz_t *Pinvmodn, const ulong *primes, ulong nprimes, cons
 	fmpz_clear(f);
 }
 
+/**
+ *	For each p[i], compute (double) a[i]x[i]/p[i], where a[i] is the inverse of P[i] mod p[i].
+ */
 void computeAXoP(double *AXoP,const ulong *Pinv,const ulong *XmodPi,const ulong *primes,ulong nprimes)
 {
 	for(ulong i = 0; i < nprimes; i++)
 		AXoP[i] = Pinv[i] * XmodPi[i] / (double) primes[i];
 }
 
-void productMod(fmpz_t res, ulong *a, ulong k, const fmpz_t n)
-{
-	fmpz_one(res);
-	for(ulong i = 0; i < k; i++)
-	{
-		fmpz_mul_ui(res,res,a[i]);
-		fmpz_mod(res,res,n);
-	}
-}
-
+/**
+ *	Summation of a[i]x[i]p[i].
+ */
 void sumOfAXPmodN(fmpz_t res, const ulong *Pinv, const ulong *XmodPi, const fmpz_t *pinvmodn, const fmpz_t Pmodn,
 				  const ulong *primes, ulong nprimes, const fmpz_t n)
 {
@@ -1422,12 +1629,6 @@ void sumOfAXPmodN(fmpz_t res, const ulong *Pinv, const ulong *XmodPi, const fmpz
 		fmpz_mod(res,res,n);
 	}
 	fmpz_clear(s);
-}
-
-void freeArrayOfFmpz(fmpz_t *array, ulong size)
-{
-	for(ulong i = 0; i < size; i++)
-		fmpz_clear(array[i]);
 }
 
 bool NFS(const fmpz_t n)
@@ -1497,12 +1698,16 @@ bool NFS(const fmpz_t n)
 	/*----------Sieve---------------------------------------------------------*/
 	MyPair abPairs[2*MaxPrimeBufSize+1];
 	ulong num = 2+nRB+nAB+nQB; /*Number of (a,b) pairs to search*/
-	slong A = smoothBound*20, B = A/3;
+	slong A = smoothBound*20, B = A/5;
 #ifdef PRINT_PROCESS
-	cout << "Sieving for " << num << " (a,b) pairs in region [" << -A << "~" << A << "]-[1," << B << "]"  << endl;
+	cout << "Sieving for " << num << " (a,b) pairs in region [" << -A << "," << A << "]-[1," << B << "]"  << endl;
 #endif
 	//sieve(f, RB, lRB, nRB, AB, lAB, nAB, abPairs, num, smoothBound*20, m);
+	time_t start = clock();
 	latticeSieve(f, RB, lRB, nRB, AB, lAB, nAB, abPairs, num, A, B, m);
+#ifdef PRINT_PROCESS
+	cout << "Time used by the sieving process: " << (clock() - start)/1000 << "ms" << endl;
+#endif
 #ifdef PRINT_SELECTED_ABPAIRS
 	cout << "Selected smooth (a,b) pairs: " << endl;
 	printListOfPairs(abPairs,num,10);
