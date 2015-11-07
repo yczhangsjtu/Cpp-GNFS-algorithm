@@ -333,7 +333,7 @@ void latticeSieve(const fmpz_poly_t f, const ulong *RB, const double *lRB, ulong
 					if(loc >= num) break;
 				}
 
-#if(PRINT_PROCESS && PRINT_SIEVE_PROCESS)
+#if(PRINT_PROCESS && PRINT_SIEVE_PROCESS )
 				cerr << "\r" << loc << "/" << num << "       ";
 				cerr << i << "/" << nRB;
 				cerr << "                       "; cerr.flush();
@@ -351,7 +351,78 @@ void latticeSieve(const fmpz_poly_t f, const ulong *RB, const double *lRB, ulong
 #endif
 		if(loc >= num) break;
 	}
+#if(PRINT_PROCESS && PRINT_SIEVE_PROCESS )
+	cerr << endl;
+#endif
 	assert(loc == num);
 	num = loc;
 }
 
+int main(int argc, char *argv[])
+{
+	if(argc < 3)
+	{
+		cerr << "Usage: sieve inputfile outputfile" << endl;
+		exit(-1);
+	}
+	FILE *input = fopen(argv[1],"r");
+	if(!input) perror(argv[1]);
+	FILE *output = fopen(argv[2],"w");
+	if(!output) perror(argv[2]);
+
+	fmpz_t n, m;
+	fmpz_poly_t f;
+	ulong RB[MaxPrimeBufSize], nRB = 0, nAB = 0, nQB = 0, smoothBound;
+	MyPair AB[MaxPrimeBufSize], QB[MaxPrimeBufSize];
+	double lRB[MaxPrimeBufSize], lAB[MaxPrimeBufSize];
+
+	fmpz_init(n);
+	fmpz_init(m);
+	fmpz_poly_init(f);
+	fmpz_fread(input,n);
+	fmpz_fread(input,m);
+	fscanf(input,"%lu",&smoothBound);
+	fmpz_poly_fread(input,f);
+	fscanf(input,"%lu",&nRB);
+	for(slong i = 0; i < nRB; i++)
+	{
+		fscanf(input,"%lu",&RB[i]);
+		lRB[i] = log(RB[i]);
+	}
+	fscanf(input,"%lu",&nAB);
+	for(slong i = 0; i < nAB; i++)
+	{
+		fscanf(input,"%ld%ld",&AB[i].r,&AB[i].p);
+		lAB[i] = log(AB[i].p);
+	}
+	fscanf(input,"%lu",&nQB);
+	for(slong i = 0; i < nQB; i++)
+	{
+		fscanf(input,"%ld%ld",&QB[i].r,&QB[i].p);
+	}
+
+	MyPair abPairs[2*MaxPrimeBufSize+1];
+	ulong num = 2+nRB+nAB+nQB; /*Number of (a,b) pairs to search*/
+	slong A = smoothBound*Afactor, B = A/abratio;
+	latticeSieve(f, RB, lRB, nRB, AB, lAB, nAB, abPairs, num, A, B, m);
+
+	fmpz_fprint(output,n); fprintf(output,"\n");
+	fmpz_fprint(output,m); fprintf(output,"\n");
+	fmpz_poly_fprint(output,f); fprintf(output,"\n");
+	fprintf(output,"%lu\n",nRB);
+	printListOfNumbers(output,RB,nRB,10);
+	fprintf(output,"%lu\n",nAB);
+	printListOfPairs(output,AB,nAB,5);
+	fprintf(output,"%lu\n",nQB);
+	printListOfPairs(output,QB,nQB,5);
+	fprintf(output,"%lu\n",num);
+	printListOfPairs(output,abPairs,num,5);
+
+	fmpz_clear(n);
+	fmpz_clear(m);
+	fmpz_poly_clear(f);
+
+	fclose(input);
+	fclose(output);
+	return 0;
+}

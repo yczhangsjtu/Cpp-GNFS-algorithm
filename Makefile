@@ -1,38 +1,28 @@
 flags=-lflint -lgmp
 
-listf=algebraic.cpp\
-	factorbase.cpp\
-	linear.cpp\
-	NFS.cpp\
-	poly.cpp\
-	polyselect.cpp\
-	rational.cpp\
-	sieve.cpp\
-	sqrt.cpp\
-	util.cpp
-
-listl=algebraic.cpp\
-	factorbase.cpp\
-	linear.cpp\
-	poly.cpp\
-	polyselect.cpp\
-	rational.cpp\
-	sieve.cpp\
-	sqrt.cpp\
-	util.cpp\
-	latticeutil.cpp\
-	latticesieve.cpp
-
 .SECONDEXPANSION:
 
-listof=$(subst cpp,o,$(listf))
-listol=$(subst cpp,o,$(listl))
+.PHONY: all
+.DEFAULT: all
+all: polyselect factorbase sieve latticesieve linear sqrt
 
-flint: GNFS-flint.cpp $(listof) GNFS.h
-	g++ $< $(listof) $(flags) -o $@
+polyselect: polyselect.cpp polyselect.h GNFS.h poly.o util.o
+	g++ $< poly.o util.o $(flags) -o $@
 
-lattice: GNFS-lattice.cpp $(listol) GNFS.h GNFS-lattice.h
-	g++ $< $(listol) $(flags) -o $@
+factorbase: factorbase.cpp factorbase.h GNFS.h poly.o util.o
+	g++ $< poly.o util.o $(flags) -o $@
+
+sieve: sieve.cpp sieve.h GNFS.h rational.o algebraic.o
+	g++ $< poly.o util.o rational.o algebraic.o $(flags) -o $@
+
+latticesieve: latticesieve.cpp latticesieve.h mypair.h GNFS.h GNFS-lattice.h poly.o util.o latticeutil.o
+	g++ $< poly.o util.o latticeutil.o $(flags) -o $@
+
+linear: linear.cpp linear.h GNFS.h poly.o util.o
+	g++ $< poly.o util.o $(flags) -o $@
+
+sqrt: sqrt.cpp sqrt.h GNFS.h poly.o util.o
+	g++ $< poly.o util.o $(flags) -o $@
 
 algebraic.o: algebraic.cpp algebraic.h mypair.h GNFS.h
 	g++ -c $< -o $@
@@ -41,9 +31,6 @@ factorbase.o: factorbase.cpp factorbase.h mypair.h GNFS.h
 	g++ -c $< -o $@
 
 linear.o: linear.cpp linear.h mypair.h GNFS.h
-	g++ -c $< -o $@
-
-NFS.o: NFS.cpp GNFS.h
 	g++ -c $< -o $@
 
 poly.o: poly.cpp poly.h mypair.h GNFS.h
@@ -65,7 +52,4 @@ util.o: util.cpp GNFS.h
 	g++ -c $< -o $@
 
 latticeutil.o: latticeutil.cpp latticeutil.h mypair.h GNFS.h GNFS-lattice.h
-	g++ -c $< -o $@
-
-latticesieve.o: latticesieve.cpp latticesieve.h mypair.h GNFS.h GNFS-lattice.h
 	g++ -c $< -o $@

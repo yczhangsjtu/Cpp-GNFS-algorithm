@@ -1,3 +1,5 @@
+#include <cstdlib>
+#include <cstdio>
 #include "GNFS.h"
 
 /**
@@ -8,7 +10,7 @@
  * m: the number selected
  * d: degree of the polynomial
  */
-void selectPolynomial(const fmpz_t n, fmpz_poly_t f, fmpz_t m, ulong &d)
+bool selectPolynomial(const fmpz_t n, fmpz_poly_t f, fmpz_t m, ulong &d)
 {
 	fmpz_t lead,tail,N,Nmm;
 #ifdef DEBUG
@@ -27,6 +29,7 @@ void selectPolynomial(const fmpz_t n, fmpz_poly_t f, fmpz_t m, ulong &d)
 	if(d % 2 == 0) d++;
 	fmpz_root(m,n,d); /* Set m to the d'th root of n rounded to floor. */
 	/* Loop until proper f,m are found. */
+	int count = 100;
 	while(true)
 	{
 		fmpz_set(N,n); /* Make a copy of n, then compute the coefficients of f by repeatedly
@@ -46,10 +49,50 @@ void selectPolynomial(const fmpz_t n, fmpz_poly_t f, fmpz_t m, ulong &d)
 		{
 			fmpz_sub_ui(m,m,1);
 		}
+		count--;
+		if(count < 0) return false;
 	}
 	fmpz_clear(lead);
 	fmpz_clear(tail);
 	fmpz_clear(N);
 	fmpz_clear(Nmm);
+	return true;
 }
 
+int main(int argc, char *argv[])
+{
+	if(argc < 3)
+	{
+		cerr << "Usage: polyselect inputfile outputfile" << endl;
+		exit(-1);
+	}
+	FILE *input = fopen(argv[1],"r");
+	if(!input) perror(argv[1]);
+	FILE *output = fopen(argv[2],"w");
+	if(!output) perror(argv[2]);
+
+	fmpz_t n, m;
+	fmpz_poly_t f;
+	ulong d;
+
+	fmpz_init(n);
+	fmpz_init(m);
+	fmpz_poly_init(f);
+
+	fmpz_fread(input,n);
+	if(!selectPolynomial(n, f, m, d)) exit(1);
+	fmpz_fprint(output,n);
+	fprintf(output,"\n");
+	fmpz_fprint(output,m);
+	fprintf(output,"\n");
+	fmpz_poly_fprint(output,f);
+	fprintf(output,"\n");
+
+	fmpz_clear(n);
+	fmpz_clear(m);
+	fmpz_poly_clear(f);
+
+	fclose(input);
+	fclose(output);
+	return 0;
+}

@@ -19,10 +19,10 @@
 #include <flint/nmod_poly.h>
 
 #define RANDOMIZE 0
-#define DEBUG 1
+#define DEBUG 0
 #define PRINT_PROCESS 1
-#define PRINT_SIEVE_PROCESS 0
-#define SLOW_PRINT_SIEVE_PROCESS 1
+#define PRINT_SIEVE_PROCESS 1
+//#define SLOW_PRINT_SIEVE_PROCESS 1
 
 #include "algebraic.h"
 #include "factorbase.h"
@@ -40,9 +40,9 @@
 //#define PRINT_RATIONAL_BASE
 //#define PRINT_ALGEBRAIC_BASE
 //#define PRINT_QUADRATIC_BASE
-#define PRINT_SELECTED_ABPAIRS
+//#define PRINT_SELECTED_ABPAIRS
 //#define PRINT_MATRIX
-#define PRINT_SELECTED_SQUARE_ABPAIRS
+//#define PRINT_SELECTED_SQUARE_ABPAIRS
 //#define PRINT_PROD_ABM
 //#define PRINT_UPPDER_BOUND
 //#define PRINT_PRIMES

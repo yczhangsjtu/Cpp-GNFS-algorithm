@@ -6,7 +6,7 @@
 #include "latticeutil.h"
 
 const double abratio = 4.0;
-const int Afactor = 15;
+const int Afactor = 20;
 
 
 #endif

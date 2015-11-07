@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include "GNFS.h"
 
 /**
@@ -359,3 +360,159 @@ void sumOfAXPmodN(fmpz_t res, const ulong *Pinv, const ulong *XmodPi, const fmpz
 	fmpz_clear(s);
 }
 
+int main(int argc, char *argv[])
+{
+	if(argc < 3)
+	{
+		cerr << "Usage: linear inputfile outputfile" << endl;
+		exit(-1);
+	}
+	FILE *input = fopen(argv[1],"r");
+	if(!input) perror(argv[1]);
+	FILE *output = fopen(argv[2],"w");
+	if(!output) perror(argv[2]);
+
+	fmpz_t n, m, x, y, r, upperBoundOfX, Pmodn, rPmodn, xxmodn, yymodn, Nm;
+	fmpz_t xpy, xmy, f1, f2;
+	fmpz_poly_t f, delta;
+	ulong num = 0, d, nprimes;
+	ulong primes[MaxSelectedPrimes], XmodPi[MaxSelectedPrimes], Pinv[MaxSelectedPrimes];
+	double AXoP[MaxSelectedPrimes];
+	fmpz_t Pinvmodn[MaxSelectedPrimes];
+	MyPair abPairs[2*MaxPrimeBufSize+1];
+
+	fmpz_init(n);
+	fmpz_init(m);
+	fmpz_init(x);
+	fmpz_init(y);
+	fmpz_init(r);
+	fmpz_init(Pmodn);
+	fmpz_init(rPmodn);
+	fmpz_init(xxmodn);
+	fmpz_init(yymodn);
+	fmpz_init(Nm);
+	fmpz_init(upperBoundOfX);
+	fmpz_init(xpy);
+	fmpz_init(xmy);
+	fmpz_init(f1);
+	fmpz_init(f2);
+	fmpz_poly_init(f);
+	fmpz_poly_init(delta);
+	fmpz_fread(input,n);
+	fmpz_fread(input,m);
+	fmpz_poly_fread(input,f);
+	d = fmpz_poly_degree(f);
+	fscanf(input,"%lu",&num);
+	for(slong i = 0; i < num; i++)
+		fscanf(input,"%ld%ld",&abPairs[i].r,&abPairs[i].p);
+	
+	sqrtProductOfPairs(y,abPairs,num,m);
+	fmpz_mod(y,y,n);
+	productOfPairs(delta,abPairs,num,f,Nm);
+	estimateUpperBoundForX(upperBoundOfX,delta,m,d);
+
+	if(!selectPrimesCoverX(primes,nprimes,upperBoundOfX,d,f)) exit(-1);
+	computeSquareRoots(XmodPi,primes,nprimes,delta,f,m,Nm);
+	computePinvs(Pinv,primes,nprimes);
+	computeAXoP(AXoP,Pinv,XmodPi,primes,nprimes);
+	computePinvsModn(Pinvmodn,primes,nprimes,n);
+	fmpz_set_d(r,doublesum(AXoP,0,nprimes));
+	productMod(Pmodn,primes,nprimes,n);
+	sumOfAXPmodN(x,Pinv,XmodPi,Pinvmodn,Pmodn,primes,nprimes,n);
+	fmpz_mul(rPmodn,r,Pmodn);
+	fmpz_mod(rPmodn,rPmodn,n);
+	fmpz_sub(x,x,rPmodn);
+	if(fmpz_cmp_ui(x,0)<0) fmpz_add(x,x,n);
+	fmpz_mul(xxmodn,x,x);
+	fmpz_mod(xxmodn,xxmodn,n);
+	fmpz_mul(yymodn,y,y);
+	fmpz_mod(yymodn,yymodn,n);
+	if(!fmpz_equal(xxmodn,yymodn))
+	{
+		fmpz_sub(x,x,Pmodn);
+		fmpz_mul(xxmodn,x,x);
+		fmpz_mod(xxmodn,xxmodn,n);
+	}
+
+	fmpz_init(xpy);
+	fmpz_init(xmy);
+	fmpz_init(f1);
+	fmpz_init(f2);
+	fmpz_add(xpy,x,y);
+	fmpz_sub(xmy,x,y);
+	fmpz_gcd(f1,xpy,n);
+	fmpz_gcd(f2,xmy,n);
+#if(DEBUG)
+	/*Finally, we get our x mod n and y mod n. Time to sum up.*/
+	fprintf(output,"x mod n = "); fmpz_fprint(output,x); fprintf(output,"\n");
+	fprintf(output,"y mod n = "); fmpz_fprint(output,y); fprintf(output,"\n");
+	/*Check square of x and y*/
+	fprintf(output,"x^2 mod n = "); fmpz_fprint(output,xxmodn); fprintf(output,"\n");
+	fprintf(output,"y^2 mod n = "); fmpz_fprint(output,yymodn); fprintf(output,"\n");
+	fprintf(output,"x + y = "); fmpz_fprint(output,xpy); fprintf(output,"\n");
+	fprintf(output,"x - y = "); fmpz_fprint(output,xmy); fprintf(output,"\n");
+	fprintf(output,"GCD(x+y,n) = "); fmpz_fprint(output,f1); fprintf(output,"\n");
+	fprintf(output,"GCD(x-y,n) = "); fmpz_fprint(output,f2); fprintf(output,"\n");
+#endif
+	fmpz_clear(xpy);
+	fmpz_clear(xmy);
+	fmpz_clear(y);
+	fmpz_clear(xxmodn);
+	fmpz_clear(yymodn);
+	/*Return true if any of f1 and f2 is a proper factor of n*/
+	if(fmpz_cmp_ui(f1,1)>0 && fmpz_cmp(f1,n)<0)
+	{
+		fmpz_t nof1;
+		fmpz_init(nof1);
+		fmpz_fdiv_q(nof1,n,f1);
+		fmpz_fprint(output,n);
+		fprintf(output," = ");
+		fmpz_fprint(output,f1);
+		fprintf(output," * ");
+		fmpz_fprint(output,nof1);
+		fprintf(output,"\n");
+		fmpz_clear(nof1);
+		fmpz_clear(f1);
+		fmpz_clear(f2);
+		return true;
+	}
+	if(fmpz_cmp_ui(f2,1)>0 && fmpz_cmp(f2,n)<0)
+	{
+		fmpz_t nof2;
+		fmpz_init(nof2);
+		fmpz_fdiv_q(nof2,n,f2);
+		fmpz_fprint(output,n);
+		fprintf(output," = ");
+		fmpz_fprint(output,f2);
+		fprintf(output," * ");
+		fmpz_fprint(output,nof2);
+		fprintf(output,"\n");
+		fmpz_clear(nof2);
+		fmpz_clear(f1);
+		fmpz_clear(f2);
+		return true;
+	}
+	return false;
+
+	fmpz_clear(n);
+	fmpz_clear(m);
+	fmpz_clear(x);
+	fmpz_clear(y);
+	fmpz_clear(r);
+	fmpz_clear(Pmodn);
+	fmpz_clear(rPmodn);
+	fmpz_clear(xxmodn);
+	fmpz_clear(yymodn);
+	fmpz_clear(Nm);
+	fmpz_clear(upperBoundOfX);
+	fmpz_clear(xpy);
+	fmpz_clear(xmy);
+	fmpz_clear(f1);
+	fmpz_clear(f2);
+	fmpz_poly_clear(f);
+	fmpz_poly_clear(delta);
+
+	fclose(input);
+	fclose(output);
+	return 0;
+}

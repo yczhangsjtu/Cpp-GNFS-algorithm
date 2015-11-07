@@ -39,24 +39,34 @@ double doublesum(double array[], ulong l, ulong r)
 /**
  *	Some print procedures.
  */
-void printListOfNumbers(slong *A, ulong s, ulong N)
+void printListOfNumbers(FILE *file, slong *A, ulong s, ulong N)
 {
 	for(ulong i = 0; i < s; i++)
 	{
-		if(N && i && i % N == 0) cout << endl;
-		cout << setw(10) << A[i];
+		if(N && i && i % N == 0) fprintf(file,"\n");
+		fprintf(file,"%10ld",A[i]);
 	}
-	cout << endl;
+	fprintf(file,"\n");
 }
 
-void printListOfPairs(MyPair *A, ulong s, ulong N)
+void printListOfNumbers(FILE *file, ulong *A, ulong s, ulong N)
 {
 	for(ulong i = 0; i < s; i++)
 	{
-		if(N && i && i % N == 0) cout << endl;
-		cout << "(" << A[i].r << "," << A[i].p << ") ";
+		if(N && i && i % N == 0) fprintf(file,"\n");
+		fprintf(file,"%10ld",A[i]);
 	}
-	cout << endl;
+	fprintf(file,"\n");
+}
+
+void printListOfPairs(FILE *file, MyPair *A, ulong s, ulong N)
+{
+	for(ulong i = 0; i < s; i++)
+	{
+		if(N && i && i % N == 0) fprintf(file,"\n");
+		fprintf(file,"%10ld%10ld",A[i].r,A[i].p);
+	}
+	fprintf(file,"\n");
 }
 
 /**
@@ -73,4 +83,3 @@ void select(MyPair *pairs, int *vec, ulong I, ulong &n)
 	n = loc;
 	assert(n > 0);
 }
-

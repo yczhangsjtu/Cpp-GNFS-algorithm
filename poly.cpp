@@ -258,4 +258,3 @@ ulong computeOrder(const nmod_poly_t px, const nmod_poly_t fx)
 	if(i >= 10000) return -1;
 	return i;
 }
-

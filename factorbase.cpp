@@ -2,7 +2,7 @@
 /**
  *	Get the bound for smoothness (that upperbound for the rational factor base)
  */
-ulong boundForSmoothness(ulong d, const fmpz_t n)
+ulong boundForSmoothness(slong d, const fmpz_t n)
 {
 #ifdef DEBUG
 	assert(d > 0);
@@ -28,7 +28,7 @@ ulong boundForSmoothness(ulong d, const fmpz_t n)
  *		divide the pairs (a,b) sieved out by the (p,r) pairs, so the smallest
  *		q is usually larger than the largest p in algebraic base.
  */
-void prepareRationalBase(ulong *RB, double *lRB, ulong &nRB, ulong bound)
+void prepareRationalBase(ulong *RB, ulong &nRB, ulong bound)
 {
 	ulong p;
 	n_primes_t iter;
@@ -36,7 +36,6 @@ void prepareRationalBase(ulong *RB, double *lRB, ulong &nRB, ulong bound)
 	for(nRB = 0; (p = n_primes_next(iter)) <= bound; nRB++)
 	{
 		RB[nRB] = p;
-		lRB[nRB] = log(RB[nRB]);
 	}
 	//slong r = rand() % (nRB/10);
 	//nRB -= r;
@@ -44,7 +43,7 @@ void prepareRationalBase(ulong *RB, double *lRB, ulong &nRB, ulong bound)
 	n_primes_clear(iter);
 }
 
-void prepareAlgebraicBase(MyPair *AB, double *lAB, ulong &nAB, ulong size, fmpz_poly_t f)
+void prepareAlgebraicBase(MyPair *AB, ulong &nAB, ulong size, fmpz_poly_t f)
 {
 	n_primes_t iter;
 	n_primes_init(iter);
@@ -61,8 +60,6 @@ void prepareAlgebraicBase(MyPair *AB, double *lAB, ulong &nAB, ulong size, fmpz_
 	}
 	n_primes_clear(iter);
 	assert(nAB <= MaxPrimeBufSize);
-	for(ulong i = 0; i < nAB; i++)
-		lAB[i] = log(AB[i].p);
 }
 
 void prepareQuadraticBase(MyPair *QB, ulong &nQB, ulong min, ulong max, fmpz_poly_t &f)
@@ -85,4 +82,52 @@ void prepareQuadraticBase(MyPair *QB, ulong &nQB, ulong min, ulong max, fmpz_pol
 	n_primes_clear(iter);
 }
 
+int main(int argc, char *argv[])
+{
+	if(argc < 3)
+	{
+		cerr << "Usage: factorbase inputfile outputfile" << endl;
+		exit(-1);
+	}
+	FILE *input = fopen(argv[1],"r");
+	if(!input) perror(argv[1]);
+	FILE *output = fopen(argv[2],"w");
+	if(!output) perror(argv[2]);
 
+	fmpz_t n, m;
+	fmpz_poly_t f;
+
+	fmpz_init(n);
+	fmpz_init(m);
+	fmpz_poly_init(f);
+
+	fmpz_fread(input,n);
+	fmpz_fread(input,m);
+	fmpz_poly_fread(input,f);
+	slong d = fmpz_poly_degree(f);
+
+	ulong smoothBound = boundForSmoothness(d,n);
+	ulong RB[MaxPrimeBufSize], nRB = 0, nAB = 0, nQB = 0;
+	MyPair AB[MaxPrimeBufSize], QB[MaxPrimeBufSize];
+	prepareRationalBase(RB,nRB,smoothBound);
+	prepareAlgebraicBase(AB,nAB,nRB,f);
+	prepareQuadraticBase(QB,nQB,smoothBound,smoothBound+20*log(smoothBound),f);
+	fmpz_fprint(output,n); fprintf(output,"\n");
+	fmpz_fprint(output,m); fprintf(output,"\n");
+	fprintf(output,"%lu\n",smoothBound);
+	fmpz_poly_fprint(output,f); fprintf(output,"\n");
+	fprintf(output,"%lu\n",nRB);
+	printListOfNumbers(output,RB,nRB,10);
+	fprintf(output,"%lu\n",nAB);
+	printListOfPairs(output,AB,nAB,5);
+	fprintf(output,"%lu\n",nQB);
+	printListOfPairs(output,QB,nQB,5);
+
+	fmpz_clear(n);
+	fmpz_clear(m);
+	fmpz_poly_clear(f);
+
+	fclose(input);
+	fclose(output);
+	return 0;
+}
