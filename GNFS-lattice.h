@@ -4,7 +4,6 @@
 #include "GNFS.h"
 #include "latticesieve.h"
 #include "latticeutil.h"
-#include "HashTable.h"
 
 const double abratio = 4.0;
 const int Afactor = 15;

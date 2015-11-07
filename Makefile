@@ -31,7 +31,7 @@ listol=$(subst cpp,o,$(listl))
 flint: GNFS-flint.cpp $(listof) GNFS.h
 	g++ $< $(listof) $(flags) -o $@
 
-lattice: GNFS-lattice.cpp $(listol) GNFS.h GNFS-lattice.h HashTable.h
+lattice: GNFS-lattice.cpp $(listol) GNFS.h GNFS-lattice.h
 	g++ $< $(listol) $(flags) -o $@
 
 algebraic.o: algebraic.cpp algebraic.h mypair.h GNFS.h
