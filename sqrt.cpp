@@ -474,7 +474,7 @@ int main(int argc, char *argv[])
 		fmpz_clear(nof1);
 		fmpz_clear(f1);
 		fmpz_clear(f2);
-		return true;
+		return 0;
 	}
 	if(fmpz_cmp_ui(f2,1)>0 && fmpz_cmp(f2,n)<0)
 	{
@@ -490,9 +490,8 @@ int main(int argc, char *argv[])
 		fmpz_clear(nof2);
 		fmpz_clear(f1);
 		fmpz_clear(f2);
-		return true;
+		return 0;
 	}
-	return false;
 
 	fmpz_clear(n);
 	fmpz_clear(m);
@@ -514,5 +513,5 @@ int main(int argc, char *argv[])
 
 	fclose(input);
 	fclose(output);
-	return 0;
+	exit(-1);
 }
