@@ -16,6 +16,13 @@ ccend=$(echo -e "\033[0m")
 info="[${ccgreen}Info${ccend}]: "
 error="[${ccred}Error${ccend}]: "
 
+if [[  -z "$1" || (! "$(grep "^[ [:digit:] ]*$" <<< $1)") ]]; then
+	n=$(python -c 'print 2**50+1')
+else
+	n=$1
+	shift
+fi
+
 while [ -n "$1" ]; do
 	if [ "$1" == "-lattice" ]; then
 		sieve=latticesieve
@@ -26,14 +33,6 @@ while [ -n "$1" ]; do
 		shift
 	fi
 done
-
-if [ -z "$1" || ! "$(grep "^[ [:digit:] ]*$" <<< $1)" ]; then
-	n=$(python -c 'print 2**50+1')
-else
-	n=$1
-	shift
-fi
-
 
 echo "${info}Factoring $n..."
 echo $n > $nfile
@@ -53,11 +52,12 @@ if [ $? != "0" ]; then
 fi
 
 echo "${info}Sieving..."
-./$sieve $basefile $pairfile1
+/usr/bin/time -f %e -o /tmp/timefile ./$sieve $basefile $pairfile1
 if [ $? != "0" ]; then
-	echo "${error}latticesieve failed!"
+	echo "${error}$sieve failed!"
 	exit 1
 fi
+echo "${info}Time consumed by $sieve: $(head -n 1 /tmp/timefile)s"
 
 echo "${info}Solving linear system..."
 ./linear $pairfile1 $pairfile2
