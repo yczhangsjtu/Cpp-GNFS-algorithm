@@ -1,13 +1,65 @@
 #include "GNFS.h"
 #include "GNFS-lattice.h"
-#include "HashTable.h"
+
+double **createCDTable(slong C, slong D)
+{
+	double **table = new double*[2*C+1];
+	for(slong c = 0; c <= 2*C; c++)
+		table[c] = new double[D+1];
+	return table;
+}
+
+int **createMarkTable(slong C, slong D)
+{
+	int **table = new int*[2*C+1];
+	for(slong c = 0; c <= 2*C; c++)
+		table[c] = new int[D+1];
+	return table;
+}
+
+void freeCDTable(double **table, slong C)
+{
+	for(slong c = 0; c <= 2*C; c++)
+		delete []table[c];
+	delete []table;
+}
+
+void freeMarkTable(int **table, slong C)
+{
+	for(slong c = 0; c <= 2*C; c++)
+		delete []table[c];
+	delete []table;
+}
+
 /**
  *	Sieving: Lattice sieve in the rational part.
  */
-void latticeRationalSieve(HashTable &pairs, const ulong *RB, const double *lRB,
+void latticeRationalSieve(double **cdTable, int **marks, const ulong *RB, const double *lRB,
 	ulong iRB, ulong nRB, MyPair u, MyPair v, slong C, slong D, double logq, const fmpz_t m)
 {
-	HashTable result(300*C*log(D));
+	for(slong c = -C; c <= C; c++)
+	{
+		for(slong d = 0; d <= D; d++)
+		{
+			slong a = c*u.r+d*v.r;
+			slong b = c*u.p+d*v.p;
+			fmpz_t bm,fa,fb,abm;
+			fmpz_init(bm);
+			fmpz_init_set_si(fa,a);
+			fmpz_init_set_si(fb,b);
+			fmpz_init(abm);
+			fmpz_mul_si(bm,m,b);
+			fmpz_add(abm,bm,fa);
+			fmpz_abs(abm,abm);
+			double labm = fmpz_dlog(abm);
+			cdTable[c+C][d] = -labm;
+			marks[c+C][d] = 0;
+			fmpz_clear(bm);
+			fmpz_clear(fa);
+			fmpz_clear(fb);
+			fmpz_clear(abm);
+		}
+	}
 	slong im = fmpz_get_si(m);
 	time_t start = clock();
 	/* Accumulate log(p) for each p < q in the base. */
@@ -48,7 +100,7 @@ void latticeRationalSieve(HashTable &pairs, const ulong *RB, const double *lRB,
 #endif
 					if(b==0) continue;
 					if(b < 0){a=-a;b=-b;}
-					result.add(MyPair(a,b),lp);
+					cdTable[c+C][d] += lp;
 				}
 			}
 			fmpz_clear(ki);
@@ -70,9 +122,7 @@ void latticeRationalSieve(HashTable &pairs, const ulong *RB, const double *lRB,
 #endif
 					if(b==0) continue;
 					if(b < 0){a=-a;b=-b;}
-					result.add(MyPair(a,b),lp);
-					a += v.r;
-					b += v.p;
+					cdTable[c+C][d] += lp;
 				}
 			}
 		}
@@ -90,43 +140,20 @@ void latticeRationalSieve(HashTable &pairs, const ulong *RB, const double *lRB,
 #endif
 					if(b==0) continue;
 					if(b < 0){a=-a;b=-b;}
-					result.add(MyPair(a,b),lp);
-					a += v.r;
-					b += v.p;
+					cdTable[c+C][d] += lp;
 				}
 			}
 		}
 	}
 	//cout << "Rat accum: " << clock()-start << endl;
 	start = clock();
-	for(list<MyPair>::iterator iter = result._list.begin(); iter != result._list.end(); iter++)
+	for(slong c = -C; c <= C; c++)
 	{
-		fmpz_t bm,fa,fb,abm,gcd;
-		fmpz_init(bm);
-		fmpz_init(fa);
-		fmpz_init(fb);
-		fmpz_init(abm);
-		fmpz_init(gcd);
-
-		slong a = iter->r;
-		slong b = iter->p;
-		fmpz_set_si(fa,a);
-		fmpz_set_si(fb,b);
-		fmpz_mul_si(bm,m,b);
-		fmpz_add(abm,bm,fa);
-		fmpz_gcd(gcd,fa,fb);
-		if(!fmpz_is_one(gcd)) continue;
-		fmpz_abs(abm,abm);
-		double labm = fmpz_dlog(abm);
-		if(result.get(*iter) - labm < -threshold - logq) continue;
-		if(!isSmooth(abm,RB,nRB)) continue;
-		pairs.insert(*iter);
-
-		fmpz_clear(bm);
-		fmpz_clear(fa);
-		fmpz_clear(fb);
-		fmpz_clear(abm);
-		fmpz_clear(gcd);
+		for(slong d = 0; d <= D; d++)
+		{
+			if(cdTable[c+C][d] >= -threshold - logq)
+				marks[c+C][d] = 1;
+		}
 	}
 	//cout << "Rat check: " << clock()-start << endl;
 }
@@ -134,10 +161,28 @@ void latticeRationalSieve(HashTable &pairs, const ulong *RB, const double *lRB,
 /**
  *	Sieving: Lattice sieve in the algebraic part.
  */
-void latticeAlgebraicSieve(HashTable &abPairs, ulong &loc, slong num, HashTable &pairs, const fmpz_poly_t f,
+void latticeAlgebraicSieve(double **cdTable, int **marks, ulong &loc, slong num, const fmpz_poly_t f,
 	const MyPair *AB, const double *lAB, ulong iAB, ulong nAB, MyPair u, MyPair v, slong C, slong D)
 {
-	HashTable result(300*C*log(D));
+	for(slong c = -C; c <= C; c++)
+	{
+		for(slong d = 0; d <= D; d++)
+		{
+			slong a = c*u.r+d*v.r;
+			slong b = c*u.p+d*v.p;
+			fmpz_t fa,fb,nm;
+			fmpz_init_set_si(fa,a);
+			fmpz_init_set_si(fb,b);
+			fmpz_init(nm);
+			norm(nm,f,fa,fb);
+			fmpz_abs(nm,nm);
+			double lnm = fmpz_dlog(nm);
+			cdTable[c+C][d] = -lnm;
+			fmpz_clear(fa);
+			fmpz_clear(fb);
+			fmpz_clear(nm);
+		}
+	}
 	time_t start = clock();
 	for(ulong j = 0; j < nAB; j++)
 	{
@@ -175,8 +220,8 @@ void latticeAlgebraicSieve(HashTable &abPairs, ulong &loc, slong num, HashTable 
 #endif
 					if(b==0) continue;
 					if(b < 0){a=-a;b=-b;}
-					if(!pairs.find(MyPair(a,b))) continue;
-					result.add(MyPair(a,b),lp);
+					if(!marks[c+C][d]) continue;
+					cdTable[c+C][d] += lp;
 				}
 			}
 			fmpz_clear(ki);
@@ -198,10 +243,8 @@ void latticeAlgebraicSieve(HashTable &abPairs, ulong &loc, slong num, HashTable 
 #endif
 					if(b==0) continue;
 					if(b < 0){a=-a;b=-b;}
-					if(!pairs.find(MyPair(a,b))) continue;
-					result.add(MyPair(a,b),lp);
-					a += v.r;
-					b += v.p;
+					if(!marks[c+C][d]) continue;
+					cdTable[c+C][d] += lp;
 				}
 			}
 		}
@@ -219,49 +262,23 @@ void latticeAlgebraicSieve(HashTable &abPairs, ulong &loc, slong num, HashTable 
 #endif
 					if(b==0) continue;
 					if(b < 0){a=-a;b=-b;}
-					if(!pairs.find(MyPair(a,b))) continue;
-					result.add(MyPair(a,b),lp);
-					a += v.r;
-					b += v.p;
+					if(!marks[c+C][d]) continue;
+					cdTable[c+C][d] += lp;
 				}
 			}
 		}
 	}
 	// cout << "Alg accum: " << clock() - start << endl;
 	start = clock();
-	for(list<MyPair>::iterator iter = result._list.begin(); iter != result._list.end(); iter++)
+	for(slong c = -C; c <= C; c++)
 	{
-		fmpz_t fa,fb,nm,gcd;
-		fmpz_init(fa);
-		fmpz_init(fb);
-		fmpz_init(nm);
-		fmpz_init(gcd);
-
-		slong a = iter->r;
-		slong b = iter->p;
-		fmpz_set_si(fa,a);
-		fmpz_set_si(fb,b);
-		norm(nm,f,fa,fb);
-		fmpz_gcd(gcd,fa,fb);
-		if(!fmpz_is_one(gcd)) continue;
-		fmpz_abs(nm,nm);
-
-		double lnm = fmpz_dlog(nm);
-		if(result.get(*iter) - lnm < -threshold) continue;
-		if(!isSmooth(nm,AB,nAB)) continue;
-		if(pairs.find(*iter))
+		for(slong d = 0; d <= D; d++)
 		{
-			abPairs.insert(*iter);
-			loc = abPairs.size();
-			if(loc >= num) break;
+			if(!marks[c+C][d]) continue;
+			if(cdTable[c+C][d] < -threshold) continue;
+			marks[c+C][d] = 2;
 		}
-
-		fmpz_clear(fa);
-		fmpz_clear(fb);
-		fmpz_clear(nm);
-		fmpz_clear(gcd);
 	}
-	// cout << "Alg check: " << clock() - start << endl;
 }
 
 /**
@@ -271,13 +288,9 @@ void latticeSieve(const fmpz_poly_t f, const ulong *RB, const double *lRB, ulong
 		   const MyPair *AB, const double *lAB, ulong nAB, MyPair *abPairs, ulong num, slong A, slong B, fmpz_t m)
 {
 	ulong loc = 0;
-	/* Use the HashTable to store the found (a,b) pairs to prevent repeat. */
-	HashTable abpairs(num);
 	/* Loop for each special-q. */
 	for(ulong i = nRB/smoothfactor; i < nRB; i++)
 	{
-		HashTable pairs(A);
-
 		slong q = RB[i];
 		double logq = log(q);
 		slong im = fmpz_get_si(m);
@@ -287,14 +300,50 @@ void latticeSieve(const fmpz_poly_t f, const ulong *RB, const double *lRB, ulong
 		getBound(C1,C2,D1,D2,A,B,u,v);
 		slong C = C2;
 		slong D = D2;
-		latticeRationalSieve(pairs, RB, lRB, i, nRB, u, v, C, D, logq, m);
-		latticeAlgebraicSieve(abpairs, loc, num, pairs, f, AB, lAB, i, nAB, u, v, C, D);
+		double **cdTable = createCDTable(C,D);
+		int **marks = createMarkTable(C,D);
+
+		latticeRationalSieve(cdTable, marks, RB, lRB, i, nRB, u, v, C, D, logq, m);
+		latticeAlgebraicSieve(cdTable, marks, loc, num, f, AB, lAB, i, nAB, u, v, C, D);
+		for(slong c = -C; c <= C; c++)
+		{
+			for(slong d = 0; d <= D; d++)
+			{
+				if(marks[c+C][d] != 2) continue;
+				slong a = c*u.r+d*v.r;
+				slong b = c*u.p+d*v.p;
+				if(b < 0){a=-a;b=-b;}
+				fmpz_t bm,fa,fb,nm,abm,gcd;
+				fmpz_init(bm);
+				fmpz_init(nm);
+				fmpz_init(abm);
+				fmpz_init(gcd);
+				fmpz_init_set_si(fa,a);
+				fmpz_init_set_si(fb,b);
+				fmpz_mul_ui(bm,m,b);
+				fmpz_add(abm,bm,fa);
+				fmpz_gcd(gcd,fa,fb);
+				norm(nm,f,fa,fb);
+				fmpz_abs(abm,abm);
+				fmpz_abs(nm,nm);
+				if(isSmooth(abm,RB,nRB) && isSmooth(nm,AB,nAB))
+				{
+					abPairs[loc] = MyPair(a,b);
+					loc++;
+					if(loc >= num) break;
+				}
 
 #if(PRINT_PROCESS && PRINT_SIEVE_PROCESS)
-		cerr << "\r" << loc << "/" << num << "       ";
-		cerr << i << "/" << nRB;
-		cerr << "                       "; cerr.flush();
+				cerr << "\r" << loc << "/" << num << "       ";
+				cerr << i << "/" << nRB;
+				cerr << "                       "; cerr.flush();
 #endif
+			}
+			if(loc >= num) break;
+		}
+
+		freeCDTable(cdTable,C);
+		freeMarkTable(marks,C);
 #if(PRINT_PROCESS && SLOW_PRINT_SIEVE_PROCESS)
 		cerr << loc << "/" << num << "       ";
 		cerr << i << "/" << nRB;
@@ -302,70 +351,6 @@ void latticeSieve(const fmpz_poly_t f, const ulong *RB, const double *lRB, ulong
 #endif
 		if(loc >= num) break;
 	}
-	if(loc < num) /*If loc < num, then continue sieving with traditional method*/
-	{
-		A *= 2; /*Double the size of the sieving region.*/
-		fmpz_t bm,fa,fb,nm,abm,gcd;
-		fmpz_init(bm);
-		fmpz_init(fa);
-		fmpz_init(fb);
-		fmpz_init(nm);
-		fmpz_init(abm);
-		fmpz_init(gcd);
-		ulong I = 2*A+1;
-		double *r_sieve_array = new double[I];
-		double *a_sieve_array = new double[I];
-
-		for(ulong b = 1; b <= 4*B; b++)
-		{
-			fmpz_set_ui(fb,b);
-			fmpz_mul_ui(bm,m,b);
-			rationalSieve(r_sieve_array,I,RB,lRB,nRB,-A,bm);
-			algebraicSieve(a_sieve_array,f,AB,lAB,nAB,I,-A,b);
-			for(slong i = 0; i < I; i++)
-			{
-				slong a = i - A;
-				fmpz_set_si(fa,a);
-				fmpz_gcd(gcd,fa,fb);
-				norm(nm,f,fa,fb);
-				fmpz_mul(abm,fb,m);
-				fmpz_add(abm,abm,fa);
-				fmpz_abs(abm,abm);
-				fmpz_abs(nm,nm);
-				if(r_sieve_array[i] >= -5.0 && a_sieve_array[i] >= -5.0 && fmpz_is_one(gcd))
-				{
-					if(abpairs.find(MyPair(a,b))) continue;
-					if(isSmooth(abm,RB,nRB) && isSmooth(nm,AB,nAB))
-					{
-						abpairs.insert(MyPair(a,b));
-						loc = abpairs.size();
-						if(loc >= num) break;
-					}
-				}
-#if(PRINT_PROCESS && PRINT_SIEVE_PROCESS)
-				cerr << "\r" << loc << "/" << num; cerr.flush();
-#endif
-			}
-#if(PRINT_PROCESS && SLOW_PRINT_SIEVE_PROCESS)
-			cerr << loc << "/" << num << endl;
-#endif
-			if(loc >= num) break;
-		}
-		delete []r_sieve_array;
-		delete []a_sieve_array;
-		fmpz_clear(bm);
-		fmpz_clear(fa);
-		fmpz_clear(fb);
-		fmpz_clear(nm);
-		fmpz_clear(abm);
-		fmpz_clear(gcd);
-	}
-	slong k = 0;
-	for(list<MyPair>::iterator iter = abpairs._list.begin(); iter!=abpairs._list.end(); iter++)
-	{
-		abPairs[k++] = *iter;
-	}
-	assert(k==num);
 	assert(loc == num);
 	num = loc;
 }

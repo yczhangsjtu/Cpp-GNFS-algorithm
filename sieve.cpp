@@ -23,6 +23,7 @@ void sieve(fmpz_poly_t f, const ulong *RB, const double *lRB, ulong nRB,
 		algebraicSieve(a_sieve_array, f, AB, lAB, nAB, 2*N+1, -N, b);
 		for(ulong i = 0; i < I; i++)
 		{
+			if(r_sieve_array[i] < -5.0 || a_sieve_array[i] < -5.0) continue;
 			slong a = i - N;
 			fmpz_set_si(fa,a);
 			fmpz_add(abm,bm,fa);
@@ -30,22 +31,20 @@ void sieve(fmpz_poly_t f, const ulong *RB, const double *lRB, ulong nRB,
 			norm(nm,f,fa,fb);
 			fmpz_abs(abm,abm);
 			fmpz_abs(nm,nm);
-			if(r_sieve_array[i] >= -5.0 && a_sieve_array[i] >= -5.0 && fmpz_is_one(gcd))
+			if(!fmpz_is_one(gcd)) continue;
+			if(isSmooth(abm,RB,nRB) && isSmooth(nm,AB,nAB))
 			{
-				if(isSmooth(abm,RB,nRB) && isSmooth(nm,AB,nAB))
-				{
-					abPairs[loc] = MyPair(a,b);
-					loc++;
-					if(loc >= num) break;
-				}
-#if(PRINT_PROCESS && PRINT_SIEVE_PROCESS)
-				cerr << "\r" << loc << "/" << num;
-				cerr << "        ";
-				cerr << b << "/" << MaxB;
-				cerr << "        ";
-				cerr.flush();
-#endif
+				abPairs[loc] = MyPair(a,b);
+				loc++;
+				if(loc >= num) break;
 			}
+#if(PRINT_PROCESS && PRINT_SIEVE_PROCESS)
+			cerr << "\r" << loc << "/" << num;
+			cerr << "        ";
+			cerr << b << "/" << MaxB;
+			cerr << "        ";
+			cerr.flush();
+#endif
 		}
 #if(PRINT_PROCESS && SLOW_PRINT_SIEVE_PROCESS)
 		cerr << loc << "/" << num;

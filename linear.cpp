@@ -101,10 +101,11 @@ void solveMatrix(nmod_mat_t mat, ulong I, ulong J, int *vec)
 		mp_limb_t b = nmod_mat_entry(mat,minI,minI);
 		if(b == 0) break;
 	}
-	vec[minI] = 1;
-	for(ulong i = minI+1; i < J; i++)
+	slong t = minI;
+	for(ulong i = minI; i < J; i++)
 		vec[i] = 0;
-	for(ulong i = 0; i < minI; i++)
-		vec[i] = nmod_mat_entry(mat,i,minI);
+	vec[t] = 1;
+	for(slong i = 0; i < minI; i++)
+		vec[i] = nmod_mat_entry(mat,i,t);
 }
 
