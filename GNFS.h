@@ -12,7 +12,7 @@
 #include <limits.h>
 
 #define RANDOMIZE 0
-#define DEBUG 1
+#define DEBUG 0
 #define PRINT_PROCESS 1
 #define PRINT_SIEVE_PROCESS 1
 //#define SLOW_PRINT_SIEVE_PROCESS 1

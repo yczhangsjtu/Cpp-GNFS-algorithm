@@ -1,11 +1,12 @@
 #include <algorithm>
 #include "GNFS.h"
-#include "GNFS-lattice.h"
 #include "util.h"
 #include "poly.h"
 #include "latticesieve.h"
 #include "latticeutil.h"
 
+double abratio = 4.0;
+int Afactor = 20;
 int MaxPrime = DefaultMaxPrime;
 int smoothfactor = 5;
 double threshold = DefaultThreshold;
