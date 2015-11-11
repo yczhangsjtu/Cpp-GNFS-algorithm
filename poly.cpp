@@ -1,4 +1,5 @@
 #include "GNFS.h"
+#include "poly.h"
 
 /* Tools about polynomials and norms. *****************************************/
 
@@ -11,6 +12,7 @@
  *	where d is the degree of f, and ci are coefficients of f.
  *	f(x) = x^d + c1 x^(d-1) + ... + cd-1 x + cd
  */
+
 void norm(fmpz_t nm, const fmpz_poly_t f, const fmpz_t a, const fmpz_t b)
 {
 	fmpz_t poa,pob,mb,c,ab;

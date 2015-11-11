@@ -1,6 +1,7 @@
 #ifndef __UTIL_H__
 #define __UTIL_H__
 
+#include <flint/fmpz.h>
 #include "mypair.h"
 
 void productMod(fmpz_t res, ulong *a, ulong k, const fmpz_t n);

@@ -1,4 +1,4 @@
-#include "GNFS.h"
+#include "rational.h"
 
 /*
  * sieve_array: The array to accumulate

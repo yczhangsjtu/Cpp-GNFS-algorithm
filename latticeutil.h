@@ -1,6 +1,7 @@
 #ifndef __LATTICE_UTIL_H__
 #define __LATTICE_UTIL_H__
 
+#include <flint/fmpz.h>
 #include "mypair.h"
 
 void gaussianLatticeReduce(MyPair &u, MyPair &v);

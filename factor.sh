@@ -59,6 +59,14 @@ if [ $? != "0" ]; then
 fi
 echo "${info}Time consumed by $sieve: $(head -n 1 /tmp/timefile)s"
 
+echo "${info}Checking if there is redundancy in the sieved pairs..."
+./checkredundancy $pairfile1
+if [ $? != "0" ]; then
+	echo "${error}checkredundancy failed!"
+	exit 1
+fi
+echo "${info}No redundant."
+
 echo "${info}Solving linear system..."
 ./linear $pairfile1 $pairfile2
 if [ $? != "0" ]; then

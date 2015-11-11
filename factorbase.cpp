@@ -1,4 +1,9 @@
 #include "GNFS.h"
+#include "poly.h"
+#include "factorbase.h"
+#include "util.h"
+
+int MaxPrime = DefaultMaxPrime;
 /**
  *	Get the bound for smoothness (that upperbound for the rational factor base)
  */
@@ -82,6 +87,7 @@ void prepareQuadraticBase(MyPair *QB, ulong &nQB, ulong min, ulong max, fmpz_pol
 	n_primes_clear(iter);
 }
 
+using namespace std;
 int main(int argc, char *argv[])
 {
 	if(argc < 3)

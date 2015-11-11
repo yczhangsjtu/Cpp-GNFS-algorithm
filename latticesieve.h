@@ -1,6 +1,8 @@
 #ifndef __LATTICE_SIEVE_H__
 #define __LATTICE_SIEVE_H__
 
+#include <flint/fmpz.h>
+#include <flint/fmpz_poly.h>
 #include "mypair.h"
 
 double **createCDTable(slong C, slong D);
@@ -12,6 +14,7 @@ void latticeRationalSieve(double **cdTable, const ulong *RB, const double *lRB,
 void latticeAlgebraicSieve(double **cdTable, ulong &loc, slong num, const fmpz_poly_t f,
 	const MyPair *AB, const double *lAB, ulong iAB, ulong nAB, MyPair u, MyPair v, slong C, slong D);
 void latticeSieve(const fmpz_poly_t f, const ulong *RB, const double *lRB, ulong nRB,
-		   const MyPair *AB, const double *lAB, ulong nAB, MyPair *abPairs, ulong num, slong A, slong B, fmpz_t m);
+		   const MyPair *AB, const double *lAB, ulong nAB, MyPair *abPairs, const ulong num,
+		   slong A, slong B, fmpz_t m, ulong &start, ulong &found);
 
 #endif

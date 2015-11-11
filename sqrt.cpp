@@ -1,5 +1,12 @@
 #include <cstdlib>
+#include <cassert>
 #include "GNFS.h"
+#include "sqrt.h"
+#include "poly.h"
+#include "util.h"
+
+int MaxPrime = DefaultMaxPrime;
+int MaxSelectedPrimes = 100000;
 
 /**
  *	Compute the square root of Prod(a+bm) for all the pairs (a,b) in an array
@@ -360,6 +367,7 @@ void sumOfAXPmodN(fmpz_t res, const ulong *Pinv, const ulong *XmodPi, const fmpz
 	fmpz_clear(s);
 }
 
+using namespace std;
 int main(int argc, char *argv[])
 {
 	if(argc < 3)

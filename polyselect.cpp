@@ -1,6 +1,10 @@
 #include <cstdlib>
 #include <cstdio>
 #include "GNFS.h"
+#include "poly.h"
+#include "polyselect.h"
+
+int MaxPrime = DefaultMaxPrime;
 
 /**
  * Given integer n, return f, m, d, such that f is a degree d polynomial,
@@ -59,6 +63,7 @@ bool selectPolynomial(const fmpz_t n, fmpz_poly_t f, fmpz_t m, ulong &d)
 	return true;
 }
 
+using namespace std;
 int main(int argc, char *argv[])
 {
 	if(argc < 3)

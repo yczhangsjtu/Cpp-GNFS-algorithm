@@ -1,4 +1,12 @@
 #include "GNFS.h"
+#include "algebraic.h"
+#include "rational.h"
+#include "sieve.h"
+#include "poly.h"
+
+int MaxPrime = DefaultMaxPrime;
+int MaxB = 20240;
+double threshold = DefaultThreshold;
 
 void sieve(fmpz_poly_t f, const ulong *RB, const double *lRB, ulong nRB,
 		   const MyPair *AB, const double *lAB, ulong nAB, MyPair *abPairs, ulong num, slong N, fmpz_t m)
@@ -23,7 +31,7 @@ void sieve(fmpz_poly_t f, const ulong *RB, const double *lRB, ulong nRB,
 		algebraicSieve(a_sieve_array, f, AB, lAB, nAB, 2*N+1, -N, b);
 		for(ulong i = 0; i < I; i++)
 		{
-			if(r_sieve_array[i] < -5.0 || a_sieve_array[i] < -5.0) continue;
+			if(r_sieve_array[i] < -threshold || a_sieve_array[i] < -threshold) continue;
 			slong a = i - N;
 			fmpz_set_si(fa,a);
 			fmpz_add(abm,bm,fa);
@@ -39,24 +47,24 @@ void sieve(fmpz_poly_t f, const ulong *RB, const double *lRB, ulong nRB,
 				if(loc >= num) break;
 			}
 #if(PRINT_PROCESS && PRINT_SIEVE_PROCESS)
-			cerr << "\r" << loc << "/" << num;
-			cerr << "        ";
-			cerr << b << "/" << MaxB;
-			cerr << "        ";
-			cerr.flush();
+			std::cerr << "\r" << loc << "/" << num;
+			std::cerr << "        ";
+			std::cerr << b << "/" << MaxB;
+			std::cerr << "        ";
+			std::cerr.flush();
 #endif
 		}
 #if(PRINT_PROCESS && SLOW_PRINT_SIEVE_PROCESS)
-		cerr << loc << "/" << num;
-		cerr << "        ";
-		cerr << b << "/" << MaxB;
-		cerr << "        ";
-		cerr << endl;
+		std::cerr << loc << "/" << num;
+		std::cerr << "        ";
+		std::cerr << b << "/" << MaxB;
+		std::cerr << "        ";
+		std::cerr << std::endl;
 #endif
 		if(loc >= num) break;
 	}
 #if(PRINT_PROCESS && PRINT_SIEVE_PROCESS)
-	cerr << endl;
+	std::cerr << std::endl;
 #endif
 	assert(loc == num);
 	num = loc;
@@ -71,6 +79,7 @@ void sieve(fmpz_poly_t f, const ulong *RB, const double *lRB, ulong nRB,
 	fmpz_clear(gcd);
 }
 
+using namespace std;
 int main(int argc, char *argv[])
 {
 	if(argc < 3)

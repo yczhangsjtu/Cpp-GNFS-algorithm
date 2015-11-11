@@ -1,5 +1,6 @@
-#include "GNFS.h"
-#include "GNFS-lattice.h"
+#include "latticeutil.h"
+
+const double boundaryFactor = 1.0;
 
 #if 0
 void gaussianLatticeReduce(MyPair &u, MyPair &v)

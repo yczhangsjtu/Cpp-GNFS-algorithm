@@ -1,6 +1,8 @@
 #ifndef __FACTOR_BASE_H__
 #define __FACTOR_BASE_H__
 
+#include <flint/fmpz.h>
+#include <flint/fmpz_poly.h>
 #include "mypair.h"
 
 ulong boundForSmoothness(slong d, const fmpz_t n);

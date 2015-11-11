@@ -1,4 +1,5 @@
-#include "GNFS.h"
+#include <cassert>
+#include "util.h"
 /**
  *	Product of a set of numbers modular n
  */

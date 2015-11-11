@@ -1,4 +1,9 @@
 #include "GNFS.h"
+#include "linear.h"
+#include "util.h"
+#include "poly.h"
+
+int MaxPrime = DefaultMaxPrime;
 /**
  *	Form the matrix from the sieved (a,b) pairs
  *
@@ -69,8 +74,8 @@ void formMatrix(nmod_mat_t mat, ulong I, ulong J, const fmpz_t m, const fmpz_pol
 			int l = Leg(a+b*s,q);
 			if((a+b*s)%q==0)
 			{
-				cout << q << " divides " << a+b*s << endl;
-				cout << a << ' ' << b << endl;
+				std::cout << q << " divides " << a+b*s << std::endl;
+				std::cout << a << ' ' << b << std::endl;
 				norm(A,f,fa,fb);
 				fmpz_print(A); printf("\n");
 			}
@@ -137,6 +142,7 @@ void solveMatrix(nmod_mat_t mat, ulong I, ulong J, int *vec)
 	delete []bufj;
 }
 
+using namespace std;
 int main(int argc, char *argv[])
 {
 	if(argc < 3)

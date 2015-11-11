@@ -1,6 +1,8 @@
 #ifndef __SQRT_H__
 #define __SQRT_H__
 
+#include <flint/fmpz.h>
+#include <flint/fmpz_poly.h>
 #include "mypair.h"
 
 void sqrtProductOfPairs(fmpz_t s, const MyPair *pairs, ulong num, const fmpz_t m);

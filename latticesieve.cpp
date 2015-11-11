@@ -1,5 +1,14 @@
+#include <algorithm>
 #include "GNFS.h"
 #include "GNFS-lattice.h"
+#include "util.h"
+#include "poly.h"
+#include "latticesieve.h"
+#include "latticeutil.h"
+
+int MaxPrime = DefaultMaxPrime;
+int smoothfactor = 5;
+double threshold = DefaultThreshold;
 
 double **createCDTable(slong C, slong D)
 {
@@ -145,7 +154,6 @@ void latticeRationalSieve(double **cdTable, int **marks, const ulong *RB, const 
 			}
 		}
 	}
-	//cout << "Rat accum: " << clock()-start << endl;
 	start = clock();
 	for(slong c = -C; c <= C; c++)
 	{
@@ -155,7 +163,6 @@ void latticeRationalSieve(double **cdTable, int **marks, const ulong *RB, const 
 				marks[c+C][d] = 1;
 		}
 	}
-	//cout << "Rat check: " << clock()-start << endl;
 }
 
 /**
@@ -268,7 +275,6 @@ void latticeAlgebraicSieve(double **cdTable, int **marks, ulong &loc, slong num,
 			}
 		}
 	}
-	// cout << "Alg accum: " << clock() - start << endl;
 	start = clock();
 	for(slong c = -C; c <= C; c++)
 	{
@@ -285,11 +291,12 @@ void latticeAlgebraicSieve(double **cdTable, int **marks, ulong &loc, slong num,
  *	Sieving: The main procedure.
  */
 void latticeSieve(const fmpz_poly_t f, const ulong *RB, const double *lRB, ulong nRB,
-		   const MyPair *AB, const double *lAB, ulong nAB, MyPair *abPairs, ulong num, slong A, slong B, fmpz_t m)
+		   const MyPair *AB, const double *lAB, ulong nAB, MyPair *abPairs, const ulong num,
+		   slong A, slong B, fmpz_t m, ulong &start, ulong &found)
 {
-	ulong loc = 0;
+	ulong loc = found;
 	/* Loop for each special-q. */
-	for(ulong i = nRB/smoothfactor; i < nRB; i++)
+	for(ulong i = start; i < nRB; i++)
 	{
 		slong q = RB[i];
 		double logq = log(q);
@@ -323,6 +330,8 @@ void latticeSieve(const fmpz_poly_t f, const ulong *RB, const double *lRB, ulong
 				fmpz_mul_ui(bm,m,b);
 				fmpz_add(abm,bm,fa);
 				fmpz_gcd(gcd,fa,fb);
+				fmpz_abs(gcd,gcd);
+				if(!fmpz_is_one(gcd)) continue;
 				norm(nm,f,fa,fb);
 				fmpz_abs(abm,abm);
 				fmpz_abs(nm,nm);
@@ -334,30 +343,32 @@ void latticeSieve(const fmpz_poly_t f, const ulong *RB, const double *lRB, ulong
 				}
 
 #if(PRINT_PROCESS && PRINT_SIEVE_PROCESS )
-				cerr << "\r" << loc << "/" << num << "       ";
-				cerr << i << "/" << nRB;
-				cerr << "                       "; cerr.flush();
+				std::cerr << "\r" << loc << "/" << num << "       ";
+				std::cerr << i << "/" << nRB;
+				std::cerr << "                       "; std::cerr.flush();
 #endif
 			}
 			if(loc >= num) break;
 		}
+		start = i+1;
 
 		freeCDTable(cdTable,C);
 		freeMarkTable(marks,C);
 #if(PRINT_PROCESS && SLOW_PRINT_SIEVE_PROCESS)
-		cerr << loc << "/" << num << "       ";
-		cerr << i << "/" << nRB;
-		cerr << endl;
+		std::cerr << loc << "/" << num << "       ";
+		std::cerr << i << "/" << nRB;
+		std::cerr << std::endl;
 #endif
 		if(loc >= num) break;
 	}
 #if(PRINT_PROCESS && PRINT_SIEVE_PROCESS )
-	cerr << endl;
+	std::cerr << std::endl;
 #endif
-	assert(loc == num);
-	num = loc;
+	found = loc;
+	assert(found >= num);
 }
 
+using namespace std;
 int main(int argc, char *argv[])
 {
 	if(argc < 3)
@@ -404,7 +415,14 @@ int main(int argc, char *argv[])
 	MyPair abPairs[2*MaxPrimeBufSize+1];
 	ulong num = 2+nRB+nAB+nQB; /*Number of (a,b) pairs to search*/
 	slong A = smoothBound*Afactor, B = A/abratio;
-	latticeSieve(f, RB, lRB, nRB, AB, lAB, nAB, abPairs, num, A, B, m);
+	ulong start = nRB/smoothfactor, found = 0;
+	while(true)
+	{
+		latticeSieve(f, RB, lRB, nRB, AB, lAB, nAB, abPairs, num, A, B, m, start, found);
+		sort(&abPairs[0],&abPairs[num]);
+		found = unique(&abPairs[0],&abPairs[found])-&abPairs[0];
+		if(found >= num) break;
+	}
 
 	fmpz_fprint(output,n); fprintf(output,"\n");
 	fmpz_fprint(output,m); fprintf(output,"\n");
