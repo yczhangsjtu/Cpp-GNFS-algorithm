@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <unistd.h>
 #include "GNFS.h"
 #include "util.h"
 #include "poly.h"
@@ -381,6 +382,16 @@ int main(int argc, char *argv[])
 	if(!input) perror(argv[1]);
 	FILE *output = fopen(argv[2],"w");
 	if(!output) perror(argv[2]);
+
+	int ch;
+	while((ch = getopt(argc-2,argv+2,"a:b:")) != -1)
+	{
+		switch(ch)
+		{
+		case 'a': Afactor = atoi(optarg); break;
+		case 'b': abratio = atof(optarg); break;
+		}
+	}
 
 	fmpz_t n, m;
 	fmpz_poly_t f;

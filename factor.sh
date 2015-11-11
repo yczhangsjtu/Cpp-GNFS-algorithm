@@ -32,6 +32,14 @@ while [ -n "$1" ]; do
 		sieve=sieve
 		shift
 	fi
+	if [ "$1" == "-b" ]; then
+		abratio="-b $2"
+		shift 2
+	fi
+	if [ "$1" == "-a" ]; then
+		Afactor="-a $2"
+		shift 2
+	fi
 done
 
 echo "${info}Factoring $n..."
@@ -52,7 +60,7 @@ if [ $? != "0" ]; then
 fi
 
 echo "${info}Sieving..."
-/usr/bin/time -f %e -o /tmp/timefile ./$sieve $basefile $pairfile1
+/usr/bin/time -f %e -o /tmp/timefile ./$sieve $basefile $pairfile1 $Afactor $abratio
 if [ $? != "0" ]; then
 	echo "${error}$sieve failed!"
 	exit 1
