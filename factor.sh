@@ -17,7 +17,7 @@ info="[${ccgreen}Info${ccend}]: "
 error="[${ccred}Error${ccend}]: "
 
 if [[  -z "$1" || (! "$(grep "^[ [:digit:] ]*$" <<< $1)") ]]; then
-	n=$(python -c 'print 2**103+1')
+	n=$(python -c 'print 2**128+1')
 else
 	n=$1
 	shift
@@ -88,11 +88,12 @@ fi
 echo "${info}No redundant."
 
 echo "${info}Solving linear system..."
-./linear $pairfile1 $pairfile2
+/usr/bin/time -f %e -o /tmp/timefile ./linear $pairfile1 $pairfile2
 if [ $? != "0" ]; then
 	echo "${error}linear failed!"
 	exit 1
 fi
+echo "${info}Time consumed by linear: $(head -n 1 /tmp/timefile)s"
 
 echo "${info}Sqrting..."
 ./sqrt $pairfile2 $factorfile

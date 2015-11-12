@@ -77,6 +77,8 @@ void sieve(fmpz_poly_t f, const ulong *RB, const double *lRB, ulong nRB,
 			for(int k = 1; k < totalnodes; k++)
 			{
 				int recvsize;
+				end = 0;
+				MPI_Send(&end,1,MPI_INT,k,0,MPI_COMM_WORLD);
 				MPI_Recv(&recvsize,1,MPI_UNSIGNED_LONG,k,0,MPI_COMM_WORLD,status);
 				MPI_Recv(recvbuf,I*2,MPI_LONG,k,0,MPI_COMM_WORLD,status)/2;
 #if(DEBUG)
@@ -99,6 +101,8 @@ void sieve(fmpz_poly_t f, const ulong *RB, const double *lRB, ulong nRB,
 #if(DEBUG)
 			std::cerr << "Found " << loc << " pairs in b = " << b << "." << std::endl;
 #endif
+			MPI_Recv(&end,1,MPI_INT,0,0,MPI_COMM_WORLD,status);
+			if(end) break;
 			MPI_Send(&loc,1,MPI_UNSIGNED_LONG,0,0,MPI_COMM_WORLD);
 			MPI_Send(abPairs,loc*2,MPI_LONG,0,0,MPI_COMM_WORLD);
 			MPI_Recv(&end,1,MPI_INT,0,0,MPI_COMM_WORLD,status);
