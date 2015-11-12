@@ -1,6 +1,7 @@
 #ifndef __LATTICE_SIEVE_H__
 #define __LATTICE_SIEVE_H__
 
+#include <mpi.h>
 #include <flint/fmpz.h>
 #include <flint/fmpz_poly.h>
 #include "mypair.h"
@@ -15,6 +16,7 @@ void latticeAlgebraicSieve(double **cdTable, ulong &loc, slong num, const fmpz_p
 	const MyPair *AB, const double *lAB, ulong iAB, ulong nAB, MyPair u, MyPair v, slong C, slong D);
 void latticeSieve(const fmpz_poly_t f, const ulong *RB, const double *lRB, ulong nRB,
 		   const MyPair *AB, const double *lAB, ulong nAB, MyPair *abPairs, const ulong num,
-		   slong A, slong B, fmpz_t m, ulong &start, ulong &found);
+		   slong A, slong B, fmpz_t m, ulong &start, ulong &found,
+		   int mynode, int totalnodes, MPI_Status *status);
 
 #endif

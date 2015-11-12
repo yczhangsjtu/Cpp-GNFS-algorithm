@@ -8,7 +8,7 @@ pairfile1=${path}abpairs1.txt
 pairfile2=${path}abpairs2.txt
 factorfile=${path}factor.txt
 
-sieve=latticesieve
+sieve=./latticesieve
 
 ccred=$(echo -e "\033[0;31m")
 ccgreen=$(echo -e "\033[0;32m")
@@ -24,13 +24,15 @@ else
 fi
 
 sievearg=""
+np="-np 2"
+
 while [ -n "$1" ]; do
 	if [ "$1" == "-lattice" ]; then
-		sieve=latticesieve
+		sieve="latticesieve"
 		shift
 	fi
 	if [ "$1" == "-linear" ]; then
-		sieve=sieve
+		sieve="sieve"
 		shift
 	fi
 	if [ "$1" == "-b" ]; then
@@ -43,6 +45,10 @@ while [ -n "$1" ]; do
 	fi
 	if [ "$1" == "-s" ]; then
 		sievearg="$sievearg -s $2"
+		shift 2
+	fi
+	if [ "$1" == "-np" ]; then
+		np="-np $2"
 		shift 2
 	fi
 done
@@ -66,7 +72,7 @@ fi
 
 echo "${info}Sieving..."
 printf "${info}"
-/usr/bin/time -f %e -o /tmp/timefile ./$sieve $basefile $pairfile1 $sievearg
+/usr/bin/time -f %e -o /tmp/timefile mpirun $np ./$sieve $basefile $pairfile1 $sievearg
 if [ $? != "0" ]; then
 	echo "${error}$sieve failed!"
 	exit 1

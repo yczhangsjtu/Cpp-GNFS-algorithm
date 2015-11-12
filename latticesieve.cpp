@@ -1,3 +1,4 @@
+#include <mpi.h>
 #include <algorithm>
 #include <unistd.h>
 #include "GNFS.h"
@@ -94,19 +95,19 @@ void latticeRationalSieve(double **cdTable, int **marks, const ulong *RB, const 
 				slong ch = c*h;
 				slong kinv = fmpz_get_si(ki);
 				slong d = -ch * kinv;
-#ifdef DEBUG
+#if(DEBUG)
 				assert((c*h+d*k)%p==0);
 #endif
 				if(d > 1) d -= ((d-1)/p)*p;
 				if(d < 1) d += ((-d)/p+1)*p;
-#ifdef DEBUG
+#if(DEBUG)
 				assert(d >= 1);
 #endif
 				for(;d <= D; d+=p)
 				{
 					slong a = c*u.r+d*v.r;
 					slong b = c*u.p+d*v.p;
-#ifdef DEBUG
+#if(DEBUG)
 					assert((a+b*im)%p == 0);
 #endif
 					if(b==0) continue;
@@ -128,7 +129,7 @@ void latticeRationalSieve(double **cdTable, int **marks, const ulong *RB, const 
 				{
 					slong a = c*u.r+d*v.r;
 					slong b = c*u.p+d*v.p;
-#ifdef DEBUG
+#if(DEBUG)
 					assert((a+b*im)%p == 0);
 #endif
 					if(b==0) continue;
@@ -146,7 +147,7 @@ void latticeRationalSieve(double **cdTable, int **marks, const ulong *RB, const 
 				{
 					slong a = c*u.r+d*v.r;
 					slong b = c*u.p+d*v.p;
-#ifdef DEBUG
+#if(DEBUG)
 					assert((a+b*im)%p == 0);
 #endif
 					if(b==0) continue;
@@ -212,19 +213,19 @@ void latticeAlgebraicSieve(double **cdTable, int **marks, ulong &loc, slong num,
 				slong ch = c*h;
 				slong kinv = fmpz_get_si(ki);
 				slong d = -ch * kinv;
-#ifdef DEBUG
+#if(DEBUG)
 				assert((c*h+d*k)%p==0);
 #endif
 				if(d > 1) d -= ((d-1)/p)*p;
 				if(d < 1) d += ((-d)/p+1)*p;
-#ifdef DEBUG
+#if(DEBUG)
 				assert(d >= 1);
 #endif
 				for(;d <= D; d+=p)
 				{
 					slong a = c*u.r+d*v.r;
 					slong b = c*u.p+d*v.p;
-#ifdef DEBUG
+#if(DEBUG)
 					assert((a+b*r)%p == 0);
 #endif
 					if(b==0) continue;
@@ -247,7 +248,7 @@ void latticeAlgebraicSieve(double **cdTable, int **marks, ulong &loc, slong num,
 				{
 					slong a = c*u.r+d*v.r;
 					slong b = c*u.p+d*v.p;
-#ifdef DEBUG
+#if(DEBUG)
 					assert((a+b*r)%p == 0);
 #endif
 					if(b==0) continue;
@@ -266,7 +267,7 @@ void latticeAlgebraicSieve(double **cdTable, int **marks, ulong &loc, slong num,
 				{
 					slong a = c*u.r+d*v.r;
 					slong b = c*u.p+d*v.p;
-#ifdef DEBUG
+#if(DEBUG)
 					assert((a+b*r)%p == 0);
 #endif
 					if(b==0) continue;
@@ -294,11 +295,14 @@ void latticeAlgebraicSieve(double **cdTable, int **marks, ulong &loc, slong num,
  */
 void latticeSieve(const fmpz_poly_t f, const ulong *RB, const double *lRB, ulong nRB,
 		   const MyPair *AB, const double *lAB, ulong nAB, MyPair *abPairs, const ulong num,
-		   slong A, slong B, fmpz_t m, ulong &start, ulong &found)
+		   slong A, slong B, fmpz_t m, ulong &start, ulong &found,
+		   int mynode, int totalnodes, MPI_Status *status)
 {
+	int end = 0;
 	ulong loc = found;
+	if(mynode) loc = 0;
 	/* Loop for each special-q. */
-	for(ulong i = start; i < nRB; i++)
+	for(ulong i = start+mynode; i < nRB; i+=totalnodes)
 	{
 		slong q = RB[i];
 		double logq = log(q);
@@ -314,6 +318,7 @@ void latticeSieve(const fmpz_poly_t f, const ulong *RB, const double *lRB, ulong
 
 		latticeRationalSieve(cdTable, marks, RB, lRB, i, nRB, u, v, C, D, logq, m);
 		latticeAlgebraicSieve(cdTable, marks, loc, num, f, AB, lAB, i, nAB, u, v, C, D);
+		if(mynode) loc = 0;
 		for(slong c = -C; c <= C; c++)
 		{
 			for(slong d = 0; d <= D; d++)
@@ -345,34 +350,84 @@ void latticeSieve(const fmpz_poly_t f, const ulong *RB, const double *lRB, ulong
 				}
 
 #if(PRINT_PROCESS && PRINT_SIEVE_PROCESS )
-				std::cerr << "\r" << loc << "/" << num << "       ";
-				std::cerr << i << "/" << nRB;
-				std::cerr << "                       "; std::cerr.flush();
+				if(mynode == 0)
+				{
+					std::cerr << "\r" << loc << "/" << num << "       ";
+					std::cerr << i << "/" << nRB;
+					std::cerr << "                       "; std::cerr.flush();
+				}
 #endif
 			}
 			if(loc >= num) break;
 		}
-		start = i+1;
+		if(mynode == 0) start = i+totalnodes;
 
 		freeCDTable(cdTable,C);
 		freeMarkTable(marks,C);
+
+		if(mynode == 0)
+		{
 #if(PRINT_PROCESS && SLOW_PRINT_SIEVE_PROCESS)
-		std::cerr << loc << "/" << num << "       ";
-		std::cerr << i << "/" << nRB;
+			std::cerr << loc << "/" << num << "       ";
+			std::cerr << i << "/" << nRB;
+			std::cerr << std::endl;
+#endif
+			MyPair *recvbuf = new MyPair[num];
+			for(int k = 1; k < totalnodes; k++)
+			{
+				int recvsize;
+				MPI_Recv(&recvsize,1,MPI_UNSIGNED_LONG,k,0,MPI_COMM_WORLD,status);
+				MPI_Recv(recvbuf,num*2,MPI_LONG,k,0,MPI_COMM_WORLD,status)/2;
+#if(DEBUG)
+				std::cerr << "Received " << recvsize << " pairs from node " << k << std::endl;
+#endif
+				for(int i = 0; i < recvsize; i++)
+				{
+					abPairs[loc] = recvbuf[i];
+					loc++;
+					if(loc >= num) break;
+				}
+				if(loc >= num) break;
+				end = 0;
+				MPI_Send(&end,1,MPI_INT,k,0,MPI_COMM_WORLD);
+			}
+			delete []recvbuf;
+		}
+		else
+		{
+#if(DEBUG)
+			std::cerr << "Found " << loc << " pairs in q = " << q << "." << std::endl;
+#endif
+			MPI_Send(&loc,1,MPI_UNSIGNED_LONG,0,0,MPI_COMM_WORLD);
+			MPI_Send(abPairs,loc*2,MPI_LONG,0,0,MPI_COMM_WORLD);
+			MPI_Recv(&end,1,MPI_INT,0,0,MPI_COMM_WORLD,status);
+			if(end) break;
+		}
+		if(mynode == 0 && loc >= num) break;
+		if(mynode && end) break;
+	}
+	if(mynode == 0)
+	{
+#if(PRINT_PROCESS && PRINT_SIEVE_PROCESS )
 		std::cerr << std::endl;
 #endif
-		if(loc >= num) break;
+		found = loc;
+		assert(found >= num);
+		end = 1;
+		for(int k = 1; k < totalnodes; k++)
+			MPI_Send(&end,1,MPI_INT,k,0,MPI_COMM_WORLD);
 	}
-#if(PRINT_PROCESS && PRINT_SIEVE_PROCESS )
-	std::cerr << std::endl;
-#endif
-	found = loc;
-	assert(found >= num);
 }
 
 using namespace std;
 int main(int argc, char *argv[])
 {
+	int mynode, totalnodes;
+	MPI_Status status;
+	MPI_Init(&argc,&argv);
+	MPI_Comm_size(MPI_COMM_WORLD,&totalnodes);
+	MPI_Comm_rank(MPI_COMM_WORLD,&mynode);
+
 	if(argc < 3)
 	{
 		cerr << "Usage: sieve inputfile outputfile" << endl;
@@ -380,8 +435,12 @@ int main(int argc, char *argv[])
 	}
 	FILE *input = fopen(argv[1],"r");
 	if(!input) perror(argv[1]);
-	FILE *output = fopen(argv[2],"w");
-	if(!output) perror(argv[2]);
+	FILE *output = NULL;
+	if(mynode == 0)
+	{
+		output = fopen(argv[2],"w");
+		if(!output) perror(argv[2]);
+	}
 
 	int ch;
 	while((ch = getopt(argc-2,argv+2,"a:b:s:")) != -1)
@@ -432,29 +491,60 @@ int main(int argc, char *argv[])
 	ulong start = nRB/smoothfactor, found = 0;
 	while(true)
 	{
-		latticeSieve(f, RB, lRB, nRB, AB, lAB, nAB, abPairs, num, A, B, m, start, found);
-		sort(&abPairs[0],&abPairs[num]);
-		found = unique(&abPairs[0],&abPairs[found])-&abPairs[0];
-		if(found >= num) break;
+		latticeSieve(f, RB, lRB, nRB, AB, lAB, nAB, abPairs, num, A, B, m, start,
+			found, mynode, totalnodes, &status);
+		if(mynode == 0)
+		{
+			sort(&abPairs[0],&abPairs[num]);
+			found = unique(&abPairs[0],&abPairs[found])-&abPairs[0];
+			int enough = 1;
+			if(found >= num)
+			{
+				for(int k = 1; k < totalnodes; k++)
+					MPI_Send(&enough,1,MPI_INT,k,0,MPI_COMM_WORLD);
+				break;
+			}
+			else
+			{
+				enough = 0;
+				for(int k = 1; k < totalnodes; k++)
+				{
+					MPI_Send(&enough,1,MPI_INT,k,0,MPI_COMM_WORLD);
+					MPI_Send(&start,1,MPI_UNSIGNED_LONG,k,0,MPI_COMM_WORLD);
+				}
+			}
+		}
+		else
+		{
+			int enough = 1;
+			MPI_Recv(&enough,1,MPI_INT,0,0,MPI_COMM_WORLD,&status);
+			if(enough) break;
+			MPI_Recv(&start,1,MPI_UNSIGNED_LONG,0,0,MPI_COMM_WORLD,&status);
+		}
 	}
 
-	fmpz_fprint(output,n); fprintf(output,"\n");
-	fmpz_fprint(output,m); fprintf(output,"\n");
-	fmpz_poly_fprint(output,f); fprintf(output,"\n");
-	fprintf(output,"%lu\n",nRB);
-	printListOfNumbers(output,RB,nRB,10);
-	fprintf(output,"%lu\n",nAB);
-	printListOfPairs(output,AB,nAB,5);
-	fprintf(output,"%lu\n",nQB);
-	printListOfPairs(output,QB,nQB,5);
-	fprintf(output,"%lu\n",num);
-	printListOfPairs(output,abPairs,num,5);
+	if(mynode == 0)
+	{
+		fmpz_fprint(output,n); fprintf(output,"\n");
+		fmpz_fprint(output,m); fprintf(output,"\n");
+		fmpz_poly_fprint(output,f); fprintf(output,"\n");
+		fprintf(output,"%lu\n",nRB);
+		printListOfNumbers(output,RB,nRB,10);
+		fprintf(output,"%lu\n",nAB);
+		printListOfPairs(output,AB,nAB,5);
+		fprintf(output,"%lu\n",nQB);
+		printListOfPairs(output,QB,nQB,5);
+		fprintf(output,"%lu\n",num);
+		printListOfPairs(output,abPairs,num,5);
 
-	fmpz_clear(n);
-	fmpz_clear(m);
-	fmpz_poly_clear(f);
+		fmpz_clear(n);
+		fmpz_clear(m);
+		fmpz_poly_clear(f);
 
+		fclose(output);
+	}
 	fclose(input);
-	fclose(output);
+
+	MPI_Finalize();
 	return 0;
 }

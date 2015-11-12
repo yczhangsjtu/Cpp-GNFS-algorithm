@@ -11,10 +11,10 @@ factorbase: factorbase.cpp factorbase.h GNFS.h poly.o util.o mypair.h
 	g++ $< poly.o util.o $(flags) -o $@
 
 sieve: sieve.cpp sieve.h GNFS.h rational.o algebraic.o util.o poly.o
-	g++ $< poly.o util.o rational.o algebraic.o $(flags) -o $@
+	mpic++ $< poly.o util.o rational.o algebraic.o $(flags) -o $@
 
 latticesieve: latticesieve.cpp latticesieve.h mypair.h GNFS.h poly.o util.o latticeutil.o
-	g++ $< poly.o util.o latticeutil.o $(flags) -o $@
+	mpic++ $< poly.o util.o latticeutil.o $(flags) -o $@
 
 linear: linear.cpp linear.h GNFS.h poly.o util.o mypair.h
 	g++ $< poly.o util.o $(flags) -o $@
