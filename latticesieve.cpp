@@ -298,7 +298,7 @@ void latticeSieve(const fmpz_poly_t f, const ulong *RB, const double *lRB, ulong
 		   slong A, slong B, fmpz_t m, ulong &start, ulong &found,
 		   int mynode, int totalnodes, MPI_Status *status)
 {
-	int end = 0;
+	int end = 0, flag = 0;
 	ulong loc = found;
 	if(mynode) loc = 0;
 	/* Loop for each special-q. */
@@ -357,6 +357,11 @@ void latticeSieve(const fmpz_poly_t f, const ulong *RB, const double *lRB, ulong
 					std::cerr << "                       "; std::cerr.flush();
 				}
 #endif
+				if(mynode)
+				{
+					MPI_Iprobe(0,1,MPI_COMM_WORLD,&flag,status);
+					if(flag) break;
+				}
 			}
 			if(loc >= num) break;
 		}
@@ -376,8 +381,6 @@ void latticeSieve(const fmpz_poly_t f, const ulong *RB, const double *lRB, ulong
 			for(int k = 1; k < totalnodes; k++)
 			{
 				int recvsize;
-				end = 0;
-				MPI_Send(&end,1,MPI_INT,k,0,MPI_COMM_WORLD);
 				MPI_Recv(&recvsize,1,MPI_UNSIGNED_LONG,k,0,MPI_COMM_WORLD,status);
 				MPI_Recv(recvbuf,num*2,MPI_LONG,k,0,MPI_COMM_WORLD,status)/2;
 #if(DEBUG)
@@ -390,25 +393,23 @@ void latticeSieve(const fmpz_poly_t f, const ulong *RB, const double *lRB, ulong
 					if(loc >= num) break;
 				}
 				if(loc >= num) break;
-				end = 0;
-				MPI_Send(&end,1,MPI_INT,k,0,MPI_COMM_WORLD);
 			}
 			delete []recvbuf;
+			if(loc >= num) break;
 		}
 		else
 		{
+			MPI_Iprobe(0,1,MPI_COMM_WORLD,&flag,status);
+			if(flag) break;
 #if(DEBUG)
 			std::cerr << "Found " << loc << " pairs in q = " << q << "." << std::endl;
 #endif
-			MPI_Recv(&end,1,MPI_INT,0,0,MPI_COMM_WORLD,status);
-			if(end) break;
 			MPI_Send(&loc,1,MPI_UNSIGNED_LONG,0,0,MPI_COMM_WORLD);
 			MPI_Send(abPairs,loc*2,MPI_LONG,0,0,MPI_COMM_WORLD);
-			MPI_Recv(&end,1,MPI_INT,0,0,MPI_COMM_WORLD,status);
-			if(end) break;
+
+			MPI_Iprobe(0,1,MPI_COMM_WORLD,&flag,status);
+			if(flag) break;
 		}
-		if(mynode == 0 && loc >= num) break;
-		if(mynode && end) break;
 	}
 	if(mynode == 0)
 	{
@@ -419,7 +420,14 @@ void latticeSieve(const fmpz_poly_t f, const ulong *RB, const double *lRB, ulong
 		assert(found >= num);
 		end = 1;
 		for(int k = 1; k < totalnodes; k++)
-			MPI_Send(&end,1,MPI_INT,k,0,MPI_COMM_WORLD);
+			MPI_Send(&end,1,MPI_INT,k,1,MPI_COMM_WORLD);
+	}
+	else
+	{
+#if(DEBUG)
+		std::cerr << "Node " << mynode << ": Received end message" << std::endl;
+#endif
+		MPI_Recv(&end,1,MPI_INT,0,1,MPI_COMM_WORLD,status);
 	}
 }
 

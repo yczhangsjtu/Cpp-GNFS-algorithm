@@ -24,7 +24,7 @@ void sieve(fmpz_poly_t f, const ulong *RB, const double *lRB, ulong nRB,
 	fmpz_init(abm);
 	fmpz_init(gcd);
 
-	int end = 0;
+	int end = 0, flag = 0;
 	ulong loc = 0;
 	ulong I = 2*N+1;
 	double *r_sieve_array = new double[I];
@@ -63,6 +63,11 @@ void sieve(fmpz_poly_t f, const ulong *RB, const double *lRB, ulong nRB,
 				std::cerr.flush();
 			}
 #endif
+			if(mynode)
+			{
+				MPI_Iprobe(0,1,MPI_COMM_WORLD,&flag,status);
+				if(flag) break;
+			}
 		}
 		if(mynode == 0)
 		{
@@ -73,6 +78,7 @@ void sieve(fmpz_poly_t f, const ulong *RB, const double *lRB, ulong nRB,
 			std::cerr << "        ";
 			std::cerr << std::endl;
 #endif
+			if(loc >= num) break;
 			MyPair *recvbuf = new MyPair[I];
 			for(int k = 1; k < totalnodes; k++)
 			{
@@ -90,31 +96,33 @@ void sieve(fmpz_poly_t f, const ulong *RB, const double *lRB, ulong nRB,
 					loc++;
 					if(loc >= num) break;
 				}
-				if(loc >= num) break;
-				end = 0;
-				MPI_Send(&end,1,MPI_INT,k,0,MPI_COMM_WORLD);
 			}
 			delete []recvbuf;
 		}
 		else
 		{
+			MPI_Iprobe(0,1,MPI_COMM_WORLD,&flag,status);
+			if(flag) break;
 #if(DEBUG)
 			std::cerr << "Found " << loc << " pairs in b = " << b << "." << std::endl;
 #endif
-			MPI_Recv(&end,1,MPI_INT,0,0,MPI_COMM_WORLD,status);
-			if(end) break;
 			MPI_Send(&loc,1,MPI_UNSIGNED_LONG,0,0,MPI_COMM_WORLD);
 			MPI_Send(abPairs,loc*2,MPI_LONG,0,0,MPI_COMM_WORLD);
-			MPI_Recv(&end,1,MPI_INT,0,0,MPI_COMM_WORLD,status);
-			if(end) break;
+
+			MPI_Iprobe(0,1,MPI_COMM_WORLD,&flag,status);
+			if(flag) break;
 		}
-		if(mynode == 0 && loc >= num) break;
-		if(mynode && end) break;
 	}
 	delete []r_sieve_array;
 	delete []a_sieve_array;
-
-	if(mynode == 0)
+	if(mynode)
+	{
+#if(DEBUG)
+		std::cerr << "Node " << mynode << ": Received end message" << std::endl;
+#endif
+		MPI_Recv(&end,1,MPI_INT,0,1,MPI_COMM_WORLD,status);
+	}
+	else
 	{
 #if(PRINT_PROCESS && PRINT_SIEVE_PROCESS)
 		std::cerr << std::endl;
@@ -123,7 +131,10 @@ void sieve(fmpz_poly_t f, const ulong *RB, const double *lRB, ulong nRB,
 		num = loc;
 		end = 1;
 		for(int k = 1; k < totalnodes; k++)
-			MPI_Send(&end,1,MPI_INT,k,0,MPI_COMM_WORLD);
+			MPI_Send(&end,1,MPI_INT,k,1,MPI_COMM_WORLD);
+#if(DEBUG)
+		std::cerr << "Sent end message" << std::endl;
+#endif
 	}
 
 	fmpz_clear(bm);

@@ -8,7 +8,7 @@ pairfile1=${path}abpairs1.txt
 pairfile2=${path}abpairs2.txt
 factorfile=${path}factor.txt
 
-sieve=./latticesieve
+sieve=./sieve
 
 ccred=$(echo -e "\033[0;31m")
 ccgreen=$(echo -e "\033[0;32m")
@@ -17,14 +17,14 @@ info="[${ccgreen}Info${ccend}]: "
 error="[${ccred}Error${ccend}]: "
 
 if [[  -z "$1" || (! "$(grep "^[ [:digit:] ]*$" <<< $1)") ]]; then
-	n=$(python -c 'print 2**128+1')
+	n=$(python -c 'print 2**92+1')
 else
 	n=$1
 	shift
 fi
 
 sievearg=""
-np="-np 2"
+np="-np 4"
 
 while [ -n "$1" ]; do
 	if [ "$1" == "-lattice" ]; then

@@ -6,7 +6,8 @@
  * nRB: Size of factor base
  * sieve_len: sieve length
  */
-void rationalSieve(double *sieve_array, ulong sieve_len, const ulong *RB, const double *lRB, ulong nRB, slong A, const fmpz_t bm)
+void rationalSieve(double *sieve_array, ulong sieve_len, const ulong *RB,
+	const double *lRB, ulong nRB, slong A, const fmpz_t bm)
 {
 	fmpz_t Abm,Abmi,fA,Abmmp;
 	fmpz_init(Abm);
