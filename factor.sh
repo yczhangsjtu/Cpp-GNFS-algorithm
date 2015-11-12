@@ -17,12 +17,13 @@ info="[${ccgreen}Info${ccend}]: "
 error="[${ccred}Error${ccend}]: "
 
 if [[  -z "$1" || (! "$(grep "^[ [:digit:] ]*$" <<< $1)") ]]; then
-	n=$(python -c 'print 2**50+1')
+	n=$(python -c 'print 2**103+1')
 else
 	n=$1
 	shift
 fi
 
+sievearg=""
 while [ -n "$1" ]; do
 	if [ "$1" == "-lattice" ]; then
 		sieve=latticesieve
@@ -33,11 +34,15 @@ while [ -n "$1" ]; do
 		shift
 	fi
 	if [ "$1" == "-b" ]; then
-		abratio="-b $2"
+		sievearg="$sievearg -b $2"
 		shift 2
 	fi
 	if [ "$1" == "-a" ]; then
-		Afactor="-a $2"
+		sievearg="$sievearg -a $2"
+		shift 2
+	fi
+	if [ "$1" == "-s" ]; then
+		sievearg="$sievearg -s $2"
 		shift 2
 	fi
 done
@@ -60,7 +65,8 @@ if [ $? != "0" ]; then
 fi
 
 echo "${info}Sieving..."
-/usr/bin/time -f %e -o /tmp/timefile ./$sieve $basefile $pairfile1 $Afactor $abratio
+printf "${info}"
+/usr/bin/time -f %e -o /tmp/timefile ./$sieve $basefile $pairfile1 $sievearg
 if [ $? != "0" ]; then
 	echo "${error}$sieve failed!"
 	exit 1

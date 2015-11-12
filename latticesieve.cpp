@@ -7,9 +7,9 @@
 #include "latticeutil.h"
 
 double abratio = 4.0;
-int Afactor = 20;
+int Afactor = DefaultAfactor;
 int MaxPrime = DefaultMaxPrime;
-int smoothfactor = 5;
+double smoothfactor = 5;
 double threshold = DefaultThreshold;
 
 double **createCDTable(slong C, slong D)
@@ -384,12 +384,13 @@ int main(int argc, char *argv[])
 	if(!output) perror(argv[2]);
 
 	int ch;
-	while((ch = getopt(argc-2,argv+2,"a:b:")) != -1)
+	while((ch = getopt(argc-2,argv+2,"a:b:s:")) != -1)
 	{
 		switch(ch)
 		{
 		case 'a': Afactor = atoi(optarg); break;
 		case 'b': abratio = atof(optarg); break;
+		case 's': smoothfactor = atof(optarg); break;
 		}
 	}
 
@@ -427,6 +428,7 @@ int main(int argc, char *argv[])
 	MyPair abPairs[2*MaxPrimeBufSize+1];
 	ulong num = 2+nRB+nAB+nQB; /*Number of (a,b) pairs to search*/
 	slong A = smoothBound*Afactor, B = A/abratio;
+	fprintf(stdout,"Sieving in region [%ld,%ld]x[%d,%ld].\n",-A,A,1,B);
 	ulong start = nRB/smoothfactor, found = 0;
 	while(true)
 	{

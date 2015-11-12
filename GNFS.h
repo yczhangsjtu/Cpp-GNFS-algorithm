@@ -37,5 +37,6 @@
 const int MaxPrimeBufSize = 30000;
 const int DefaultMaxPrime = 20000000;
 const double DefaultThreshold = 5.0;
+const int DefaultAfactor = 20;
 
 #endif

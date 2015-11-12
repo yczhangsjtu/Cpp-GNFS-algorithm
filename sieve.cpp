@@ -1,3 +1,5 @@
+//#include <mpi.h>
+#include <unistd.h>
 #include "GNFS.h"
 #include "algebraic.h"
 #include "rational.h"
@@ -5,7 +7,8 @@
 #include "poly.h"
 
 int MaxPrime = DefaultMaxPrime;
-int MaxB = 20240;
+int Afactor = DefaultAfactor;
+long int MaxB = 20240;
 double threshold = DefaultThreshold;
 
 void sieve(fmpz_poly_t f, const ulong *RB, const double *lRB, ulong nRB,
@@ -92,6 +95,15 @@ int main(int argc, char *argv[])
 	FILE *output = fopen(argv[2],"w");
 	if(!output) perror(argv[2]);
 
+	int ch;
+	while((ch = getopt(argc-2,argv+2,"a:")) != -1)
+	{
+		switch(ch)
+		{
+		case 'a': Afactor = atoi(optarg); break;
+		}
+	}
+
 	fmpz_t n, m;
 	fmpz_poly_t f;
 	ulong RB[MaxPrimeBufSize], nRB = 0, nAB = 0, nQB = 0, smoothBound;
@@ -125,9 +137,16 @@ int main(int argc, char *argv[])
 
 	MyPair abPairs[2*MaxPrimeBufSize+1];
 	ulong num = 2+nRB+nAB+nQB; /*Number of (a,b) pairs to search*/
-	ulong N = smoothBound*20;
+	ulong N = smoothBound*Afactor;
 
+	fprintf(stdout,"Sieving in region [-%lu,%lu]x[%d,%ld].\n",N,N,1,MaxB);
+
+	/*
+	MPI_Init(&argc,&argv);
+	MPI_Comm_size(MPI_COMM_WORLD,&totalnodes);
+	MPI_Comm_rank(MPI_COMM_WORLD,&mynode);*/
 	sieve(f, RB, lRB, nRB, AB, lAB, nAB, abPairs, num, N, m);
+	/*MPI_Finalize();*/
 
 	fmpz_fprint(output,n); fprintf(output,"\n");
 	fmpz_fprint(output,m); fprintf(output,"\n");

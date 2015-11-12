@@ -3,7 +3,7 @@
 /**
  *	Product of a set of numbers modular n
  */
-void productMod(fmpz_t res, ulong *a, ulong k, const fmpz_t n)
+void productMod(fmpz_t res, const ulong *a, ulong k, const fmpz_t n)
 {
 	fmpz_one(res);
 	for(ulong i = 0; i < k; i++)
@@ -30,7 +30,7 @@ void freeArrayOfFmpz(fmpz_t *array, ulong size)
  *	the precision is badly hurt when summing two floating point numbers significantly
  *	different in order.
  */
-double doublesum(double array[], ulong l, ulong r)
+double doublesum(const double array[], ulong l, ulong r)
 {
 	if(r-l == 0) return 0;
 	if(r-l == 1) return array[l];
