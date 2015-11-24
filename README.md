@@ -1,5 +1,5 @@
 # Cpp-GNFS-algorithm
-A c++ implementation of GNFS algorithm using NTL library.
+A c++ implementation of GNFS algorithm using flint library.
 
 --------------------------------------------------------------------------------
 Usage:
